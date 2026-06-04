@@ -1,0 +1,426 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --radius-none: 0px;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 32px;
+}
+
+:root {
+  /* Modern Aesthetic Light Theme (Slate, Snow, & Mint Glow) */
+  --brand-bg: #F8FAFC;
+  --brand-card: #FFFFFF;
+  --brand-panel: #F1F5F9;
+  --brand-border: #CBD5E1;
+  --brand-border-width: 1px;
+  --brand-text: #000000;
+  --brand-text-muted: #1E293B;
+  
+  /* Modern Premium Soft Shadows */
+  --brand-shadow: 0 4px 12px -1px rgba(15, 23, 42, 0.04), 0 2px 4px -1px rgba(15, 23, 42, 0.02);
+  --brand-shadow-lg: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 16px -6px rgba(15, 23, 42, 0.04);
+  --brand-shadow-hover: 0 20px 35px -5px rgba(15, 23, 42, 0.1), 0 12px 20px -8px rgba(15, 23, 42, 0.06);
+  
+  --brand-input-bg: #FFFFFF;
+  --brand-active-bg: #F1F5F9;
+  
+  /* Modern soft Fuel Category badges */
+  --petrol-bg: #EFF6FF;
+  --petrol-border: #DBEAFE;
+  --petrol-text: #1D4ED8;
+  --diesel-bg: #FEF3C7;
+  --diesel-border: #FDE68A;
+  --diesel-text: #D97706;
+  
+  /* Generic UI Alerts - Minimalist aesthetic glow */
+  --error-bg: #FEF2F2;
+  --error-border: #FEE2E2;
+  --error-text: #991B1B;
+  --success-bg: #ECFDF5;
+  --success-border: #D1FAE5;
+  --success-text: #065F46;
+  --warning-bg: #FFFBEB;
+  --warning-border: #FEF3C7;
+  --warning-text: #92400E;
+  --info-bg: #F0F9FF;
+  --info-border: #E0F2FE;
+  --info-text: #0369A1;
+}
+
+/* Dark Mode Theme overrides */
+.dark-mode-active {
+  --brand-bg: #090D1A;
+  --brand-card: #111827;
+  --brand-panel: #1F2937;
+  --brand-border: #2D3748;
+  --brand-border-width: 1px;
+  --brand-text: #F9FAFB;
+  --brand-text-muted: #9CA3AF;
+  
+  --brand-shadow: 0 4px 12px -1px rgba(0, 0, 0, 0.3);
+  --brand-shadow-lg: 0 16px 32px -5px rgba(0, 0, 0, 0.45);
+  --brand-shadow-hover: 0 24px 48px -5px rgba(0, 0, 0, 0.55);
+  
+  --brand-input-bg: #0F172A;
+  --brand-active-bg: #1E293B;
+  
+  --petrol-bg: #1E3A8A;
+  --petrol-border: #3B82F6;
+  --petrol-text: #93C5FD;
+  --diesel-bg: #78350F;
+  --diesel-border: #D97706;
+  --diesel-text: #FCD34D;
+
+  --error-bg: #451A1A;
+  --error-border: #EF4444;
+  --error-text: #FECACA;
+  --success-bg: #064E3B;
+  --success-border: #10B981;
+  --success-text: #A7F3D0;
+  --warning-bg: #452B0E;
+  --warning-border: #F59E0B;
+  --warning-text: #FDE68A;
+  --info-bg: #1E3A8A;
+  --info-border: #3B82F6;
+  --info-text: #BFDBFE;
+}
+
+/* General transitions & layout styling */
+body {
+  background-color: var(--brand-bg);
+  color: var(--brand-text);
+  font-family: var(--font-sans);
+  transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-font-smoothing: antialiased;
+}
+
+#main_layout {
+  background-color: var(--brand-bg) !important;
+  color: var(--brand-text) !important;
+}
+
+/* Card Containers Styling */
+div.bg-slate-800,
+div.bg-slate-800\/90,
+div.bg-slate-800\/40,
+div.bg-slate-900,
+div.bg-slate-900\/50,
+form.bg-slate-800 {
+  background-color: var(--brand-card) !important;
+  border: var(--brand-border-width) solid var(--brand-border) !important;
+  box-shadow: var(--brand-shadow) !important;
+  color: var(--brand-text) !important;
+  border-radius: var(--radius-md) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+div.bg-slate-800:hover,
+form.bg-slate-800:hover {
+  box-shadow: var(--brand-shadow-lg) !important;
+}
+
+/* Custom interactive inputs selection */
+::selection {
+  background-color: #3B82F6 !important;
+  color: #FFFFFF !important;
+}
+
+/* Font and typography scale overrides */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--brand-text) !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.025em !important;
+}
+
+label {
+  color: #000000 !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+}
+
+/* Light mode specific high contrast text */
+:root {
+  --text-slate-400: #1E293B;
+  --text-slate-300: #0f172a;
+}
+
+span.text-slate-300,
+span.text-slate-400,
+span.text-slate-500,
+span[class*="text-slate-300"],
+span[class*="text-slate-400"],
+span[class*="text-slate-500"],
+p.text-slate-300,
+p.text-slate-400,
+p.text-slate-500,
+p[class*="text-slate-305"],
+p[class*="text-slate-300"],
+p[class*="text-slate-400"],
+p[class*="text-slate-500"],
+div[class*="text-slate-400"],
+div[class*="text-slate-300"],
+small[class*="text-slate-400"] {
+  color: var(--brand-text-muted) !important;
+}
+
+/* Let's make sure that in light mode, text is super black if not in dark mode active */
+body:not(.dark-mode-active) span.text-slate-400,
+body:not(.dark-mode-active) span.text-slate-300,
+body:not(.dark-mode-active) p.text-slate-400,
+body:not(.dark-mode-active) p.text-slate-300,
+body:not(.dark-mode-active) p.text-slate-500,
+body:not(.dark-mode-active) span.text-slate-500,
+body:not(.dark-mode-active) div.text-slate-400,
+body:not(.dark-mode-active) div.text-slate-500,
+body:not(.dark-mode-active) div.text-slate-600,
+body:not(.dark-mode-active) label {
+  color: #000000 !important;
+}
+
+body:not(.dark-mode-active) td, 
+body:not(.dark-mode-active) th,
+body:not(.dark-mode-active) input,
+body:not(.dark-mode-active) select,
+body:not(.dark-mode-active) textarea {
+  color: #000000 !important;
+}
+
+/* Block headers and beautiful dividers */
+.block-header {
+  border-bottom: 1px solid var(--brand-border);
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+}
+
+/* Header Navbar Style */
+header {
+  background-color: var(--brand-card) !important;
+  border-bottom: var(--brand-border-width) solid var(--brand-border) !important;
+  color: var(--brand-text) !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+header h1, header h1 * {
+  color: var(--brand-text) !important;
+}
+
+header button {
+  border: var(--brand-border-width) solid var(--brand-border) !important;
+  background-color: var(--brand-card) !important;
+  color: var(--brand-text) !important;
+  box-shadow: var(--brand-shadow) !important;
+  border-radius: var(--radius-sm) !important;
+  transition: all 0.2s ease !important;
+}
+
+header button:hover {
+  background-color: var(--brand-active-bg) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: var(--brand-shadow-hover) !important;
+}
+
+/* Sidebar and Navigation Drawer styling */
+aside {
+  background-color: var(--brand-card) !important;
+  border-right: var(--brand-border-width) solid var(--brand-border) !important;
+  box-shadow: none !important;
+}
+
+aside nav button {
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid transparent !important;
+  color: var(--brand-text-muted) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-bottom: 4px;
+}
+
+aside nav button:hover {
+  background-color: var(--brand-panel) !important;
+  color: var(--brand-text) !important;
+}
+
+aside nav button[className*="text-teal-400"] {
+  background-color: var(--brand-active-bg) !important;
+  color: var(--brand-text) !important;
+  border: 1px solid var(--brand-border) !important;
+  box-shadow: var(--brand-shadow) !important;
+  border-left: 4px solid #3B82F6 !important;
+}
+
+/* Clean, elegant table interface */
+table {
+  border-collapse: collapse !important;
+  width: 100%;
+}
+
+thead tr {
+  border-bottom: var(--brand-border-width) solid var(--brand-border) !important;
+  background-color: var(--brand-panel) !important;
+}
+
+th {
+  background-color: var(--brand-panel) !important;
+  color: var(--brand-text-muted) !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  font-size: 10px !important;
+  letter-spacing: 0.1em !important;
+  border-bottom: var(--brand-border-width) solid var(--brand-border) !important;
+  padding: 12px 16px !important;
+  text-align: left !important;
+  font-family: var(--font-sans) !important;
+  border-right: none !important;
+}
+
+td {
+  padding: 12px 16px !important;
+  border-bottom: 1px solid var(--brand-border) !important;
+  color: var(--brand-text) !important;
+  font-size: 13px !important;
+  font-family: var(--font-sans) !important;
+  border-right: none !important;
+}
+
+tr:last-child td {
+  border-bottom: none !important;
+}
+
+tr:hover td {
+  background-color: var(--brand-panel) !important;
+}
+
+/* Sleek modern inputs */
+input, select, textarea {
+  background-color: var(--brand-input-bg) !important;
+  color: var(--brand-text) !important;
+  border: var(--brand-border-width) solid var(--brand-border) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 9px 12px !important;
+  font-family: var(--font-sans) !important;
+  font-size: 13px !important;
+  outline: none !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+  transition: all 0.2s ease !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: #3B82F6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+}
+
+/* Universal Button redesign - Removing raw chunky borders, adding smooth aesthetics */
+button[className*="bg-teal-500"], 
+button[className*="bg-emerald-500"],
+button[className*="bg-blue-500"],
+button[id*="submit"],
+button[className*="submit-btn"],
+button[type="submit"] {
+  background-color: #3B82F6 !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(59, 130, 246, 0.4) !important;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.1) !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  border-radius: var(--radius-sm) !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+button[class*="bg-teal-500"]:hover, 
+button[class*="bg-emerald-500"]:hover,
+button[id*="submit"]:hover,
+button[type="submit"]:hover {
+  background-color: #2563EB !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Badge override formatting */
+div.bg-red-500\/10,
+div[class*="bg-red-400/10"],
+#login_error {
+  background-color: var(--error-bg) !important;
+  border: 1px solid var(--error-border) !important;
+  color: var(--error-text) !important;
+  font-family: var(--font-sans) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 10px 14px !important;
+}
+
+div.bg-green-500\/10,
+div[class*="bg-green-400/10"] {
+  background-color: var(--success-bg) !important;
+  border: 1px solid var(--success-border) !important;
+  color: var(--success-text) !important;
+  font-family: var(--font-sans) !important;
+  border-radius: var(--radius-sm) !important;
+  padding: 10px 14px !important;
+}
+
+/* Fuel Category badges */
+span[class*="bg-blue-400/10"] {
+  background-color: var(--petrol-bg) !important;
+  border: 1px solid var(--petrol-border) !important;
+  color: var(--petrol-text) !important;
+  border-radius: var(--radius-xs) !important;
+  text-transform: uppercase !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+}
+
+span[class*="bg-yellow-400/10"] {
+  background-color: var(--diesel-bg) !important;
+  border: 1px solid var(--diesel-border) !important;
+  color: var(--diesel-text) !important;
+  border-radius: var(--radius-xs) !important;
+  text-transform: uppercase !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+}
+
+/* Gauge level layout progress bar */
+div.bg-slate-900.rounded-full {
+  background-color: var(--brand-panel) !important;
+  border: none !important;
+  border-radius: var(--radius-2xl) !important;
+}
+
+div.bg-blue-500.h-1\.5 {
+  background-color: #3B82F6 !important;
+  border-radius: var(--radius-2xl) !important;
+}
+
+div.bg-yellow-500.h-1\.5 {
+  background-color: #F59E0B !important;
+  border-radius: var(--radius-2xl) !important;
+}
+
+/* High Contrast Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--brand-border);
+  border-radius: var(--radius-2xl);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-text-muted);
+}

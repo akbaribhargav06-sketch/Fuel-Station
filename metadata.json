@@ -1,0 +1,6 @@
+{
+  "name": "Petrol Pump Management System",
+  "description": "A comprehensive Petrol and Diesel pump manager with dynamic shift controls, nozzle readings, operator attendance, tank stock tracking, and reports in English and Gujarati.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
