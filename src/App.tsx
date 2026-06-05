@@ -37,6 +37,7 @@ import ReportsTab from './components/ReportsTab';
 import LogsTab from './components/LogsTab';
 import UdhaarKhataTab from './components/UdhaarKhataTab';
 import DayBookTab from './components/DayBookTab';
+import { getOfflineState, processOfflineAction } from './utils/offlineDb';
 
 export default function App() {
   // Config states with persistence
@@ -62,18 +63,24 @@ export default function App() {
   const [state, setState] = useState<SystemState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [offlineMode, setOfflineMode] = useState<boolean>(false);
 
   // Fetch full data state from Express server
   const fetchState = async () => {
     try {
       setLoading(true);
+      setError('');
       const res = await fetch('/api/state');
       if (!res.ok) throw new Error('Failed to retrieve system parameters.');
       const data = await res.json();
       setState(data);
+      setOfflineMode(false);
     } catch (err: any) {
-      console.error(err);
-      setError('ERP offline. Please check Node server.');
+      console.warn("Express server unavailable. Switching gracefully to Client-Side Offline Mode for Netlify preview consistency.", err);
+      // Load offline state from storage
+      const offlineData = getOfflineState();
+      setState(offlineData);
+      setOfflineMode(true);
     } finally {
       setLoading(false);
     }
@@ -99,20 +106,42 @@ export default function App() {
 
   // Generalized client-server communicator
   const handlePostAction = async (actionType: string, url: string, payload: any) => {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    const refreshedState = await response.json();
-
-    if (!response.ok) {
-      throw new Error(refreshedState.error || `Failed to ${actionType}.`);
+    if (offlineMode || !state) {
+      try {
+        const updatedOffline = await processOfflineAction(actionType, url, payload, state || getOfflineState());
+        setState(updatedOffline);
+      } catch (err: any) {
+        throw new Error(err.message || `Failed offline action: ${actionType}`);
+      }
+      return;
     }
 
-    // Server returns the full updated SystemState, sync instantly
-    setState(refreshedState);
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const refreshedState = await response.json();
+
+      if (!response.ok) {
+        throw new Error(refreshedState.error || `Failed to ${actionType}.`);
+      }
+
+      // Server returns the full updated SystemState, sync instantly
+      setState(refreshedState);
+    } catch (err: any) {
+      console.warn("Post action failed on server. Prompting offline save fallback.", err);
+      // Fallback to local offline mode
+      setOfflineMode(true);
+      try {
+        const updatedOffline = await processOfflineAction(actionType, url, payload, state || getOfflineState());
+        setState(updatedOffline);
+      } catch (subErr: any) {
+        throw new Error(subErr.message || `Failed to execute fallback offline action: ${actionType}`);
+      }
+    }
   };
 
   const t = translations[lang];
@@ -249,6 +278,32 @@ export default function App() {
             <div className="p-4 bg-red-400/10 border border-red-500/20 text-red-400 rounded-xl mb-6 text-center text-xs font-bold leading-relaxed flex items-center justify-center gap-2">
               <Info className="w-5 h-5 flex-shrink-0" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {offlineMode && (
+            <div className="p-3.5 bg-amber-500/10 border border-amber-500/25 text-amber-300 rounded-xl mb-6 text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-md">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <span className="flex h-2.5 w-2.5 relative shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                </span>
+                <span className="font-extrabold tracking-wider uppercase text-[9px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded border border-amber-500/30">
+                  {lang === 'en' ? 'Offline Local Mode' : 'સ્થાનિક ઓફલાઇન મોડ'}
+                </span>
+                <span className="font-medium text-slate-300 text-[11px]">
+                  {lang === 'en' 
+                    ? 'Running client-side! Your data edits are immediately saved on this browser (Ideal for Netlify previews).' 
+                    : 'તમારા પોતાના બ્રાઉઝરમાં સેવ રહે છે (નેટલીફાય ટેસ્ટ અને ઓફલાઇન ઉપયોગ માટે શ્રેષ્ઠ છે).'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={fetchState}
+                className="self-end sm:self-center px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-[10px] rounded-lg tracking-wider transition-all duration-150 shadow-sm shrink-0 uppercase active:scale-95 cursor-pointer"
+              >
+                {lang === 'en' ? 'Reconnect' : 'ફરી કનેક્ટ કરો'}
+              </button>
             </div>
           )}
 
