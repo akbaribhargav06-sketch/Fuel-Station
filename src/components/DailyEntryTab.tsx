@@ -18,7 +18,16 @@ import {
   DollarSign,
   AlertTriangle,
   Lock,
-  ArrowRight
+  ArrowRight,
+  Timer,
+  Play,
+  Check,
+  Users,
+  CreditCard,
+  Smartphone,
+  ShieldCheck,
+  Fuel,
+  Send
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -329,6 +338,315 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
     }
   };
 
+  // --- EMPLOYEE/FILLER BOY SPECIFIC LOGIC & TIMERS ---
+  const [tickerTime, setTickerTime] = useState(new Date());
+  const [creditForm, setCreditForm] = useState({
+    customerId: '',
+    liters: '10',
+    notes: ''
+  });
+  const [selectedNozzleForCredit, setSelectedNozzleForCredit] = useState('');
+
+  // Auto-redirect filler boy to open operational shift
+  useEffect(() => {
+    if (session.role === 'employee') {
+      const openRecord = state.records.find(r => r.status === 'open');
+      if (openRecord) {
+        setSelectedDate(openRecord.date);
+        setSelectedShiftId(openRecord.shiftId);
+      }
+    }
+  }, [state.records, session.role]);
+
+  // Tick timer for the duty timer display
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTickerTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatElapsedTime = (startStr?: string, submitStr?: string) => {
+    if (!startStr) return '';
+    const startTime = new Date(startStr).getTime();
+    const endTime = submitStr ? new Date(submitStr).getTime() : tickerTime.getTime();
+    const diffMs = endTime - startTime;
+    if (diffMs <= 0) return lang === 'en' ? '0m' : '૦ મિનિટ';
+
+    const diffSecs = Math.floor(diffMs / 1000);
+    const hrs = Math.floor(diffSecs / 3600);
+    const mins = Math.floor((diffSecs % 3600) / 60);
+    const secs = diffSecs % 60;
+
+    if (lang === 'en') {
+      return `${hrs > 0 ? `${hrs}h ` : ''}${mins}m ${secs}s`;
+    } else {
+      // Gujarati numbers conversion optionally, standard is perfect
+      return `${hrs > 0 ? `${hrs} કલાક ` : ''}${mins} મિનિટ ${secs} સેકન્ડ`;
+    }
+  };
+
+  const handleClaimNozzle = async (nozzleId: string) => {
+    if (!currentRecord) return;
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    // Prepopulate opening reading
+    const existingEntry = currentRecord.nozzleEntries[nozzleId];
+    let openingReading = 1000;
+    if (!existingEntry) {
+      const pastRecordsDesc = [...state.records]
+        .filter(r => r.nozzleEntries[nozzleId] !== undefined)
+        .sort((a,b) => b.id.localeCompare(a.id));
+      if (pastRecordsDesc.length > 0) {
+        openingReading = pastRecordsDesc[0].nozzleEntries[nozzleId].closingReading;
+      }
+    } else {
+      openingReading = existingEntry.openingReading;
+    }
+
+    const updatedNozzleEntries = {
+      ...parseNozzleDrafts(),
+      [nozzleId]: {
+        nozzleId,
+        operatorId: session.employeeId,
+        openingReading,
+        closingReading: existingEntry ? String(existingEntry.closingReading) : String(openingReading),
+        testingLiters: existingEntry ? String(existingEntry.testingLiters || '0') : '0',
+        cash: existingEntry ? String(existingEntry.cash) : '0',
+        upi: existingEntry ? String(existingEntry.upi) : '0',
+        card: existingEntry ? String(existingEntry.card) : '0',
+        creditSales: existingEntry ? String(existingEntry.creditSales) : '0',
+        creditClient: existingEntry ? existingEntry.creditClient : '',
+        startedAt: new Date().toISOString() // auto-start timer on claim
+      }
+    };
+
+    const payload = {
+      action: 'update-entries',
+      recordId: activeRecordId,
+      nozzleEntries: updatedNozzleEntries,
+      tankEntries: parseTankDrafts(),
+      notes: notes,
+      userId: session.employeeId,
+      userName: session.name
+    };
+
+    try {
+      await onPostAction('claim nozzle duty', '/api/records', payload);
+      setSuccessMsg(lang === 'en' ? 'Nozzle duty claimed and active timer started!' : 'નોઝલ ડ્યુટી સફળતાપૂર્વક ફાળવવામાં આવી અને સમય શરૂ થઈ ગયો છે!');
+      onRefreshState();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to claim nozzle.');
+    }
+  };
+
+  const handleEmployeeStartShift = async (nozzleId: string) => {
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    const draft = nozzleDrafts[nozzleId];
+    if (!draft) return;
+
+    const parsed = parseNozzleDrafts();
+    parsed[nozzleId].startedAt = new Date().toISOString();
+    parsed[nozzleId].isSubmitted = false;
+
+    const payload = {
+      action: 'update-entries',
+      recordId: activeRecordId,
+      nozzleEntries: parsed,
+      tankEntries: parseTankDrafts(),
+      notes: notes,
+      userId: session.employeeId,
+      userName: session.name
+    };
+
+    try {
+      await onPostAction('start nozzle shift timer', '/api/records', payload);
+      setSuccessMsg(lang === 'en' ? 'Shift duty timer started!' : 'ડ્યુટી સમય શરૂ થઈ ગયો છે!');
+      onRefreshState();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to start shift.');
+    }
+  };
+
+  const handleEmployeeSubmitToManager = async (nozzleId: string) => {
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    const parsedNozzles = parseNozzleDrafts();
+    const entry = parsedNozzles[nozzleId];
+    if (!entry) return;
+
+    // Validate reading
+    if (entry.closingReading < entry.openingReading) {
+      setErrorMsg(
+        lang === 'en' 
+          ? `Closing reading cannot be less than opening reading.` 
+          : `અંતિમ રીડીંગ શરૂઆત કરતાં ઓછું હોઈ શકે નહીં.`
+      );
+      return;
+    }
+
+    const startISO = currentRecord?.nozzleEntries[nozzleId]?.startedAt || new Date().toISOString();
+    const submitISO = new Date().toISOString();
+    
+    // Calculate final elapsed time string
+    const startTime = new Date(startISO).getTime();
+    const endTime = new Date(submitISO).getTime();
+    const diffMs = endTime - startTime;
+    const diffSecs = Math.max(0, Math.floor(diffMs / 1000));
+    const hrs = Math.floor(diffSecs / 3600);
+    const mins = Math.floor((diffSecs % 3600) / 60);
+    const elapsedStr = lang === 'en' 
+      ? `${hrs > 0 ? `${hrs}h ` : ''}${mins}m`
+      : `${hrs > 0 ? `${hrs} કલાક ` : ''}${mins} મિનિટ`;
+
+    parsedNozzles[nozzleId] = {
+      ...entry,
+      isSubmitted: true,
+      startedAt: startISO,
+      submittedAt: submitISO,
+      elapsedTime: elapsedStr
+    };
+
+    const payload = {
+      action: 'update-entries',
+      recordId: activeRecordId,
+      nozzleEntries: parsedNozzles,
+      tankEntries: parseTankDrafts(),
+      notes: notes,
+      userId: session.employeeId,
+      userName: session.name
+    };
+
+    try {
+      await onPostAction('submit shift entries to manager', '/api/records', payload);
+      setSuccessMsg(
+        lang === 'en' 
+          ? 'Hisab and readings submitted to the Manager successfully!' 
+          : 'તમારો સંપૂર્ણ હિસાબ અને રીડીંગ મેનેજરને સફળતાપૂર્વક મોકલી દેવામાં આવેલ છે!'
+      );
+      onRefreshState();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Submission failed.');
+    }
+  };
+
+  const handleEmployeeAddCreditSlip = async (e: React.FormEvent, assignedNozId: string) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    const customerId = creditForm.customerId || (state.customers && state.customers.filter(c => c.active)[0]?.id) || '';
+    if (!customerId) {
+      setErrorMsg(lang === 'en' ? 'Please select a customer.' : 'કૃપા કરીને ઉધાર ગ્રાહક પસંદ કરો.');
+      return;
+    }
+
+    const litersNum = parseFloat(creditForm.liters);
+    if (!litersNum || litersNum <= 0) {
+      setErrorMsg(lang === 'en' ? 'Please enter valid liters.' : 'કૃપા કરીને સાચા લીટર દાખલ કરો.');
+      return;
+    }
+
+    const nozzle = state.nozzles.find(n => n.id === assignedNozId);
+    if (!nozzle) return;
+
+    const tank = state.tanks.find(t => t.id === nozzle.tankId);
+    const rate = tank ? tank.customRate : 100;
+    const amount = litersNum * rate;
+    const invoiceNo = `SLIP-${Date.now().toString().slice(-6)}`;
+
+    // 1. Post Credit Transaction
+    const txPayload = {
+      action: 'add',
+      transaction: {
+        customerId,
+        date: selectedDate,
+        fuelType: nozzle.fuelType,
+        liters: litersNum,
+        rate: rate,
+        amount: amount,
+        invoiceNo: invoiceNo,
+        operatorId: session.employeeId,
+        notes: creditForm.notes.trim() || `Daily shift udhaar slip added by ${session.name}`
+      },
+      userId: session.employeeId,
+      userName: session.name
+    };
+
+    try {
+      // Post the credit slip transaction
+      await onPostAction('add credit transaction', '/api/credit-transactions', txPayload);
+
+      // 2. Also increment the local nozzle draft's creditSales and append client name
+      const targetNozDraft = nozzleDrafts[assignedNozId];
+      if (targetNozDraft) {
+        const prevCreditSales = parseFloat(targetNozDraft.creditSales) || 0;
+        const newCreditSales = prevCreditSales + amount;
+
+        const customerName = state.customers?.find(c => c.id === customerId)?.name || 'Credit Client';
+        const currentClients = targetNozDraft.creditClient ? targetNozDraft.creditClient.split(', ') : [];
+        if (!currentClients.includes(customerName)) {
+          currentClients.push(customerName);
+        }
+
+        const updatedNozzleEntries = {
+          ...parseNozzleDrafts(),
+          [assignedNozId]: {
+            ...parseNozzleDrafts()[assignedNozId],
+            creditSales: String(newCreditSales),
+            creditClient: currentClients.join(', ')
+          }
+        };
+
+        // Save this updated draft immediately to the backend as well
+        const recordPayload = {
+          action: 'update-entries',
+          recordId: activeRecordId,
+          nozzleEntries: updatedNozzleEntries,
+          tankEntries: parseTankDrafts(),
+          notes: notes,
+          userId: session.employeeId,
+          userName: session.name
+        };
+
+        await onPostAction('link credit slip value to nozzle draft', '/api/records', recordPayload);
+      }
+
+      setSuccessMsg(
+        lang === 'en' 
+          ? `Credit Slip ${invoiceNo} added and linked to nozzle successfully!` 
+          : `ઉધાર કાપલી ${invoiceNo} સફળતાપૂર્વક ઉમેરી નોઝલ સાથે જોડી દેવામાં આવી છે!`
+      );
+      
+      // Reset form
+      setCreditForm({
+        customerId: '',
+        liters: '10',
+        notes: ''
+      });
+      onRefreshState();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to add credit slip.');
+    }
+  };
+
+  // Filter nozzles based on logged-in employee assignments
+  const allowedNozzles = state.nozzles.filter(noz => {
+    if (!noz.active) return false;
+    if (session.role === 'employee') {
+      const loggedInEmp = state.employees.find(e => e.id === session.employeeId);
+      if (loggedInEmp?.assignedNozzles) {
+        return loggedInEmp.assignedNozzles.includes(noz.id);
+      }
+      return false; // hide if not explicitly assigned
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-6" id="daily_entry_tab">
       
@@ -471,9 +789,14 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
               </h3>
 
               <div className="space-y-4 divide-y divide-slate-700/40">
-                {state.nozzles
-                  .filter(n => n.active)
-                  .map((noz, index) => {
+                {allowedNozzles.length === 0 ? (
+                  <div className="text-center p-8 bg-slate-900/40 rounded-xl border border-slate-700/20 text-slate-400 text-xs">
+                    {lang === 'en' 
+                      ? 'No nozzles are assigned to your employee profile. Please contact pump Admin/Manager.' 
+                      : 'તમારી પ્રોફાઇલ પર કોઈ નોઝલ ફાળવવામાં આવી નથી. કૃપા કરીને એડમિન અથવા મેનેજરનો સંપર્ક કરો.'}
+                  </div>
+                ) : (
+                  allowedNozzles.map((noz, index) => {
                     const draft = nozzleDrafts[noz.id] || {
                       openingReading: '1000',
                       closingReading: '1000',
@@ -504,6 +827,8 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
 
                     const reconDiff = totalReceived - totalRevenue;
                     const isClosedMode = currentRecord.status === 'closed';
+                    const isSubmitted = currentRecord.nozzleEntries[noz.id]?.isSubmitted || false;
+                    const isLocked = isClosedMode || isSubmitted;
 
                     return (
                       <div key={noz.id} className={`pt-4 ${index === 0 ? 'pt-0' : ''} space-y-3`}>
@@ -517,13 +842,18 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                               {noz.fuelType === 'petrol' ? t.petrol : t.diesel}
                             </span>
                             <span className="text-[10px] text-slate-500 font-mono">Rate: ₹{fuelRate.toFixed(2)}</span>
+                            {isSubmitted && (
+                              <span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-bold rounded uppercase tracking-wider font-sans">
+                                {lang === 'en' ? 'Submitted' : 'મોકલેલ'}
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-2">
                             <span className="text-slate-400 text-xs">Attendant:</span>
-                            {isClosedMode ? (
-                              <span className="text-xs text-slate-300 font-semibold">
-                                {state.employees.find(e => e.id === draft.operatorId)?.name || 'N/A'}
+                            {isLocked || session.role === 'employee' ? (
+                              <span className="text-xs text-teal-400 font-semibold font-sans bg-teal-500/10 px-2.5 py-1 rounded">
+                                {state.employees.find(e => e.id === (draft.operatorId || session.employeeId))?.name || session.name}
                               </span>
                             ) : (
                               <select
@@ -545,13 +875,14 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                         {/* Nozzle physical readings inputs */}
                         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                           <div>
-                            <label className="block text-slate-400 text-[10px] uppercase font-semibold mb-1">{t.openingReading}</label>
+                            <label className="block text-slate-300 text-[10px] uppercase font-semibold mb-1">{t.openingReading}</label>
                             <input
                               type="number"
                               step="0.01"
-                              readOnly // Lock opening reading to prevent key-in validation errors
+                              disabled={isLocked}
                               value={draft.openingReading}
-                              className="w-full px-2.5 py-1.5 bg-slate-900/60 border border-slate-750 rounded text-slate-400 text-xs font-mono focus:outline-none"
+                              onChange={(e) => handleNozzleDraftChange(noz.id, 'openingReading', e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded text-slate-200 text-xs font-mono focus:outline-none focus:border-teal-500"
                             />
                           </div>
 
@@ -560,7 +891,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                             <input
                               type="number"
                               step="0.01"
-                              disabled={isClosedMode}
+                              disabled={isLocked}
                               value={draft.closingReading}
                               onChange={(e) => handleNozzleDraftChange(noz.id, 'closingReading', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded text-slate-200 text-xs font-mono focus:outline-none focus:border-teal-500"
@@ -572,7 +903,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                             <input
                               type="number"
                               step="0.01"
-                              disabled={isClosedMode}
+                              disabled={isLocked}
                               value={draft.testingLiters}
                               onChange={(e) => handleNozzleDraftChange(noz.id, 'testingLiters', e.target.value)}
                               className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded text-slate-200 text-xs font-mono focus:outline-none focus:border-teal-500"
@@ -581,14 +912,14 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
 
                           <div>
                             <span className="block text-slate-400 text-[10px] uppercase font-semibold mb-1">{t.litresSold}</span>
-                            <span className="block px-2.5 py-1.5 bg-slate-900/40 border border-slate-750 text-emerald-400 text-xs font-mono font-bold rounded">
+                            <span className="block px-2.5 py-1.5 bg-slate-900/40 border border-slate-755 text-emerald-400 text-xs font-mono font-bold rounded">
                               {litresSold.toFixed(2)} L
                             </span>
                           </div>
 
                           <div>
                             <span className="block text-slate-400 text-[10px] uppercase font-semibold mb-1">Fuel Value</span>
-                            <span className="block px-2.5 py-1.5 bg-slate-900/40 border border-slate-750 text-slate-100 text-xs font-mono font-bold rounded">
+                            <span className="block px-2.5 py-1.5 bg-slate-900/40 border border-slate-755 text-slate-100 text-xs font-mono font-bold rounded">
                               ₹{totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                             </span>
                           </div>
@@ -600,7 +931,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                             <label className="block text-slate-300 text-[10px] uppercase font-semibold mb-1">Cash (₹)</label>
                             <input
                               type="number"
-                              disabled={isClosedMode}
+                              disabled={isLocked}
                               value={draft.cash}
                               onChange={(e) => handleNozzleDraftChange(noz.id, 'cash', e.target.value)}
                               className="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-slate-200 text-xs font-mono focus:outline-none focus:border-teal-500"
@@ -611,7 +942,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                             <label className="block text-slate-300 text-[10px] uppercase font-semibold mb-1">UPI GPay (₹)</label>
                             <input
                               type="number"
-                              disabled={isClosedMode}
+                              disabled={isLocked}
                               value={draft.upi}
                               onChange={(e) => handleNozzleDraftChange(noz.id, 'upi', e.target.value)}
                               className="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-slate-200 text-xs font-mono focus:outline-none focus:border-teal-500"
@@ -622,7 +953,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                             <label className="block text-slate-300 text-[10px] uppercase font-semibold mb-1">POS Cards (₹)</label>
                             <input
                               type="number"
-                              disabled={isClosedMode}
+                              disabled={isLocked}
                               value={draft.card}
                               onChange={(e) => handleNozzleDraftChange(noz.id, 'card', e.target.value)}
                               className="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-slate-200 text-xs font-mono focus:outline-none focus:border-teal-500"
@@ -633,7 +964,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                             <label className="block text-slate-300 text-[10px] uppercase font-semibold mb-1">Credit Diary (₹)</label>
                             <input
                               type="number"
-                              disabled={isClosedMode}
+                              disabled={isLocked}
                               value={draft.creditSales}
                               onChange={(e) => handleNozzleDraftChange(noz.id, 'creditSales', e.target.value)}
                               className="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-slate-200 text-xs font-mono focus:outline-none focus:border-teal-500"
@@ -644,7 +975,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                             <label className="block text-slate-300 text-[10px] uppercase font-semibold mb-1">Credit Client</label>
                             <input
                               type="text"
-                              disabled={isClosedMode}
+                              disabled={isLocked}
                               placeholder="e.g. S.T. Bus Depot"
                               value={draft.creditClient}
                               onChange={(e) => handleNozzleDraftChange(noz.id, 'creditClient', e.target.value)}
@@ -673,114 +1004,279 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                             </span>
                           </div>
                         </div>
+
+                        {/* Filler Boy Submit Button / Submission Status bar */}
+                        {session.role === 'employee' && (
+                          <div className="flex justify-end pt-1">
+                            {isSubmitted ? (
+                              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-[11px] font-bold rounded-lg uppercase tracking-wider font-sans">
+                                <Check className="w-3.5 h-3.5" />
+                                {lang === 'en' ? 'Submitted to Manager' : 'મેનેજરને મોકલી દીધેલ છે'}
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleEmployeeSubmitToManager(noz.id)}
+                                className="px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md hover:shadow-teal-500/10 transition-all duration-150 cursor-pointer active:scale-95"
+                              >
+                                <Send className="w-3.5 h-3.5" />
+                                {lang === 'en' ? 'Submit to Manager' : 'મેનેજરને મોકલો'}
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
-                  })}
+                  })
+                )}
               </div>
             </div>
           </div>
 
-          {/* RIGHT: Tank purchase decantation and closing dip, buttons */}
+          {/* RIGHT: Manager Tools OR Filler Boy Udhar Slips & Timer */}
           <div className="xl:col-span-4 space-y-5">
-            
-            {/* Decanting arrivals & Physical Dipstick check */}
-            <div className="bg-slate-800/90 rounded-2xl border border-slate-700/60 p-5 space-y-4">
-              <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
-                <Calendar className="text-blue-400 w-4 h-4 animate-spin-slow" />
-                {t.dailyStockBalance}
-              </h3>
+            {session.role === 'employee' ? (
+              <>
+                {/* 1. Duty Timer Card */}
+                <div className="bg-slate-800/90 rounded-2xl border border-slate-700/60 p-5 space-y-4">
+                  <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
+                    <Clock className="text-teal-400 w-4 h-4 animate-pulse" />
+                    {lang === 'en' ? 'Active Duty Timer' : 'ચાલુ ડ્યુટીનો સમય'}
+                  </h3>
 
-              <div className="space-y-4">
-                {state.tanks.map((tank) => {
-                  const draft = tankDrafts[tank.id] || { purchaseQty: '0', closingDipStock: '0' };
-                  const isClosedMode = currentRecord.status === 'closed';
-
-                  return (
-                    <div key={tank.id} className="space-y-2 p-3 bg-slate-900/50 border border-slate-755 rounded-xl">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="font-semibold text-slate-200">{tank.name}</span>
-                        <span className="text-slate-500 font-mono">Current calculated: {tank.currentStock.toFixed(1)} L</span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        {/* Tank Decanting entry (Purchase stock) */}
-                        <div>
-                          <label className="block text-slate-400 text-[10px] uppercase font-semibold mb-1">Cargo Arrived (L)</label>
-                          <input
-                            type="number"
-                            disabled={isClosedMode}
-                            value={draft.purchaseQty}
-                            onChange={(e) => handleTankDraftChange(tank.id, 'purchaseQty', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-705 rounded text-slate-200 text-xs font-mono focus:outline-none focus:border-blue-500"
-                          />
-                        </div>
-
-                        {/* Physical measured closing stock DIP */}
-                        <div>
-                          <label className="block text-slate-350 text-[10px] uppercase font-semibold mb-1">Actual Dip Check (L)</label>
-                          <input
-                            type="number"
-                            disabled={isClosedMode}
-                            value={draft.closingDipStock}
-                            onChange={(e) => handleTankDraftChange(tank.id, 'closingDipStock', e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-705 rounded text-slate-200 text-xs font-mono focus:outline-none focus:border-blue-500"
-                          />
-                        </div>
-                      </div>
+                  <div className="bg-slate-900/60 rounded-xl p-4 border border-slate-700/20 text-center space-y-2">
+                    <div className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">
+                      {lang === 'en' ? 'TIME ELAPSED ON DUTY' : 'ડ્યુટી પર વીતેલો સમય'}
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                    {(() => {
+                      // Find first assigned nozzle's startedAt or default to openedAt
+                      const firstAssignedNoz = allowedNozzles[0];
+                      const startedAtStr = firstAssignedNoz && currentRecord.nozzleEntries[firstAssignedNoz.id]?.startedAt
+                        ? currentRecord.nozzleEntries[firstAssignedNoz.id].startedAt
+                        : currentRecord.openedAt || new Date().toISOString();
 
-            {/* Shift operators summary and actions */}
-            <div className="bg-slate-800/90 rounded-2xl border border-slate-700/60 p-5 space-y-4">
-              <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
-                <FileCheck className="text-teal-400 w-4 h-4" />
-                Shift Log notes & Roster
-              </h3>
+                      const startTime = new Date(startedAtStr).getTime();
+                      const curTime = tickerTime.getTime();
+                      const diffMs = Math.max(0, curTime - startTime);
+                      const diffSecs = Math.floor(diffMs / 1000);
+                      const hrs = Math.floor(diffSecs / 3600);
+                      const mins = Math.floor((diffSecs % 3600) / 60);
+                      const secs = diffSecs % 60;
 
-              <div className="space-y-3">
-                {/* Notes input */}
-                <div>
-                  <label className="block text-slate-400 text-[10px] uppercase font-semibold mb-1">{t.notes}</label>
-                  <textarea
-                    rows={2}
-                    disabled={currentRecord.status === 'closed'}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Enter any shift incident, short payment logs, decanting numbers, or roster changes..."
-                    className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-xs font-sans focus:outline-none focus:border-teal-500"
-                  />
+                      return (
+                        <div className="text-3xl font-mono font-bold bg-gradient-to-r from-teal-400 to-emerald-400 bg-clip-text text-transparent">
+                          {String(hrs).padStart(2, '0')}:{String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+                        </div>
+                      );
+                    })()}
+                    <div className="text-xs text-slate-400 font-sans">
+                      Started: <span className="text-slate-300 font-mono font-medium">{new Date(currentRecord.openedAt || new Date()).toLocaleTimeString()}</span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Submit action panel */}
-                {currentRecord.status === 'open' ? (
-                  <div className="grid grid-cols-2 gap-2 pt-2">
-                    <button
-                      onClick={handleSaveDraft}
-                      className="py-2.5 px-3 bg-zinc-700 hover:bg-zinc-650 border border-zinc-600 text-teal-300 font-semibold rounded-lg text-xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 shadow"
-                    >
-                      <Save className="w-4 h-4" />
-                      Save Draft
-                    </button>
+                {/* 2. Udhar Customers Section */}
+                <div className="bg-slate-800/90 rounded-2xl border border-slate-700/60 p-5 space-y-4">
+                  <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
+                    <Users className="text-yellow-400 w-4 h-4" />
+                    {lang === 'en' ? 'Udhar Customers Slip' : 'ઉધાર ગ્રાહકોની કાપલી'}
+                  </h3>
+
+                  <form 
+                    onSubmit={(e) => {
+                      if (!selectedNozzleForCredit) {
+                        setErrorMsg(lang === 'en' ? 'Please select a nozzle.' : 'કૃપા કરીને નોઝલ પસંદ કરો.');
+                        e.preventDefault();
+                        return;
+                      }
+                      handleEmployeeAddCreditSlip(e, selectedNozzleForCredit);
+                    }} 
+                    className="space-y-3"
+                  >
+                    {/* Select Nozzle */}
+                    <div>
+                      <label className="block text-slate-400 text-[10px] uppercase font-semibold mb-1">
+                        {lang === 'en' ? 'Select Nozzle' : 'નોઝલ પસંદ કરો'}
+                      </label>
+                      <select
+                        value={selectedNozzleForCredit}
+                        onChange={(e) => setSelectedNozzleForCredit(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded text-xs text-slate-200 focus:outline-none focus:border-teal-500"
+                        required
+                      >
+                        <option value="">-- Choose Nozzle --</option>
+                        {allowedNozzles.map(noz => {
+                          const isSub = currentRecord.nozzleEntries[noz.id]?.isSubmitted;
+                          return (
+                            <option key={noz.id} value={noz.id} disabled={isSub}>
+                              {noz.nozzleNumber} ({noz.fuelType === 'petrol' ? 'Petrol' : 'Diesel'}) {isSub ? ' [Submitted]' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    {/* Select Customer */}
+                    <div>
+                      <label className="block text-slate-400 text-[10px] uppercase font-semibold mb-1">
+                        {lang === 'en' ? 'Select Customer (ઉધાર ખાતાવાળા)' : 'ગ્રાહક પસંદ કરો'}
+                      </label>
+                      <select
+                        value={creditForm.customerId}
+                        onChange={(e) => setCreditForm({ ...creditForm, customerId: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded text-xs text-slate-200 focus:outline-none focus:border-teal-500"
+                        required
+                      >
+                        <option value="">-- Choose Customer --</option>
+                        {state.customers?.filter(c => c.active).map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} ({c.vehicleNo || 'No vehicle'}) - Limit: ₹{c.creditLimit}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Liters */}
+                    <div>
+                      <label className="block text-slate-400 text-[10px] uppercase font-semibold mb-1">
+                        {lang === 'en' ? 'Liters Sold (લીટર)' : 'લીટર'}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={creditForm.liters}
+                        onChange={(e) => setCreditForm({ ...creditForm, liters: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded text-slate-200 text-xs font-mono focus:outline-none focus:border-teal-500"
+                        placeholder="10"
+                        required
+                      />
+                    </div>
+
+                    {/* Notes */}
+                    <div>
+                      <label className="block text-slate-400 text-[10px] uppercase font-semibold mb-1">
+                        {lang === 'en' ? 'Notes/Vehicle details (નોંધ)' : 'નોંધ / વિગત'}
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={creditForm.notes}
+                        onChange={(e) => setCreditForm({ ...creditForm, notes: e.target.value })}
+                        placeholder="e.g. GJ-01-XX-1234, Driver signed slip..."
+                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded text-slate-200 text-xs font-sans focus:outline-none focus:border-teal-500"
+                      />
+                    </div>
 
                     <button
-                      onClick={handleCloseShift}
-                      className="py-2.5 px-3 bg-red-500 hover:bg-red-400 text-slate-900 font-bold rounded-lg text-xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 shadow"
+                      type="submit"
+                      className="w-full py-2 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-md font-sans"
                     >
-                      <Lock className="w-4 h-4" />
-                      {t.closeShiftBtn}
+                      <Users className="w-3.5 h-3.5" />
+                      {lang === 'en' ? 'Add Credit Slip' : 'ઉધાર કાપલી ઉમેરો'}
                     </button>
-                  </div>
-                ) : (
-                  <div className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl text-center text-red-400 text-xs font-semibold leading-relaxed">
-                    Shift locked. Calculations applied and synced under permanent history registry database.
-                  </div>
-                )}
-              </div>
-            </div>
+                  </form>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Decanting arrivals & Physical Dipstick check */}
+                <div className="bg-slate-800/90 rounded-2xl border border-slate-700/60 p-5 space-y-4">
+                  <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
+                    <Calendar className="text-blue-400 w-4 h-4 animate-spin-slow" />
+                    {t.dailyStockBalance}
+                  </h3>
 
+                  <div className="space-y-4">
+                    {state.tanks.map((tank) => {
+                      const draft = tankDrafts[tank.id] || { purchaseQty: '0', closingDipStock: '0' };
+                      const isClosedMode = currentRecord.status === 'closed';
+
+                      return (
+                        <div key={tank.id} className="space-y-2 p-3 bg-slate-900/50 border border-slate-755 rounded-xl">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-semibold text-slate-200">{tank.name}</span>
+                            <span className="text-slate-500 font-mono">Current calculated: {tank.currentStock.toFixed(1)} L</span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            {/* Tank Decanting entry (Purchase stock) */}
+                            <div>
+                              <label className="block text-slate-400 text-[10px] uppercase font-semibold mb-1">Cargo Arrived (L)</label>
+                              <input
+                                type="number"
+                                disabled={isClosedMode}
+                                value={draft.purchaseQty}
+                                onChange={(e) => handleTankDraftChange(tank.id, 'purchaseQty', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-705 rounded text-slate-200 text-xs font-mono focus:outline-none focus:border-blue-500"
+                              />
+                            </div>
+
+                            {/* Physical measured closing stock DIP */}
+                            <div>
+                              <label className="block text-slate-350 text-[10px] uppercase font-semibold mb-1">Actual Dip Check (L)</label>
+                              <input
+                                type="number"
+                                disabled={isClosedMode}
+                                value={draft.closingDipStock}
+                                onChange={(e) => handleTankDraftChange(tank.id, 'closingDipStock', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-705 rounded text-slate-200 text-xs font-mono focus:outline-none focus:border-blue-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Shift operators summary and actions */}
+                <div className="bg-slate-800/90 rounded-2xl border border-slate-700/60 p-5 space-y-4">
+                  <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
+                    <FileCheck className="text-teal-400 w-4 h-4" />
+                    Shift Log notes & Roster
+                  </h3>
+
+                  <div className="space-y-3">
+                    {/* Notes input */}
+                    <div>
+                      <label className="block text-slate-400 text-[10px] uppercase font-semibold mb-1">{t.notes}</label>
+                      <textarea
+                        rows={2}
+                        disabled={currentRecord.status === 'closed'}
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Enter any shift incident, short payment logs, decanting numbers, or roster changes..."
+                        className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-xs font-sans focus:outline-none focus:border-teal-500"
+                      />
+                    </div>
+
+                    {/* Submit action panel */}
+                    {currentRecord.status === 'open' ? (
+                      <div className="grid grid-cols-2 gap-2 pt-2">
+                        <button
+                          onClick={handleSaveDraft}
+                          className="py-2.5 px-3 bg-zinc-700 hover:bg-zinc-650 border border-zinc-600 text-teal-300 font-semibold rounded-lg text-xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 shadow"
+                        >
+                          <Save className="w-4 h-4" />
+                          Save Draft
+                        </button>
+
+                        <button
+                          onClick={handleCloseShift}
+                          className="py-2.5 px-3 bg-red-500 hover:bg-red-400 text-slate-900 font-bold rounded-lg text-xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 shadow"
+                        >
+                          <Lock className="w-4 h-4" />
+                          {t.closeShiftBtn}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="p-3.5 bg-red-500/10 border border-red-500/20 rounded-xl text-center text-red-400 text-xs font-semibold leading-relaxed">
+                        Shift locked. Calculations applied and synced under permanent history registry database.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

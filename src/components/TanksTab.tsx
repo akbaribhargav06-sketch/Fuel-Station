@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { translations, LanguageCode } from '../translations';
 import { SystemState, FuelTank, UserSession } from '../types';
-import { Droplet, Plus, Trash2, Edit, Percent, ShieldCheck } from 'lucide-react';
+import { Droplet, Plus, Trash2, Edit, Percent, ShieldCheck, Check, Fuel, TrendingUp } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface TanksTabProps {
@@ -29,6 +29,61 @@ export default function TanksTab({ state, lang, session, onPostAction }: TanksTa
   const [openingStock, setOpeningStock] = useState<number>(10000);
   const [customRate, setCustomRate] = useState<number>(101.45);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Bulk rate setters
+  const petrolRateVal = state.tanks.find(t => t.fuelType === 'petrol')?.customRate || 101.45;
+  const dieselRateVal = state.tanks.find(t => t.fuelType === 'diesel')?.customRate || 92.15;
+
+  const [petrolInput, setPetrolInput] = useState(petrolRateVal.toString());
+  const [dieselInput, setDieselInput] = useState(dieselRateVal.toString());
+  const [isFocused, setIsFocused] = useState({ petrol: false, diesel: false });
+  const [isUpdatingRates, setIsUpdatingRates] = useState(false);
+  const [rateErrorMsg, setRateErrorMsg] = useState('');
+  const [rateSuccessMsg, setRateSuccessMsg] = useState('');
+
+  React.useEffect(() => {
+    if (!isFocused.petrol) {
+      setPetrolInput(petrolRateVal.toString());
+    }
+  }, [petrolRateVal, isFocused.petrol]);
+
+  React.useEffect(() => {
+    if (!isFocused.diesel) {
+      setDieselInput(dieselRateVal.toString());
+    }
+  }, [dieselRateVal, isFocused.diesel]);
+
+  const handleUpdateRates = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRateErrorMsg('');
+    setRateSuccessMsg('');
+    setIsUpdatingRates(true);
+
+    const pRate = parseFloat(petrolInput);
+    const dRate = parseFloat(dieselInput);
+
+    if (isNaN(pRate) || pRate <= 0 || isNaN(dRate) || dRate <= 0) {
+      setRateErrorMsg(lang === 'en' ? 'Rates must be valid positive numbers.' : 'ભાવ પોઝીટીવ સંખ્યા હોવા જોઈએ.');
+      setIsUpdatingRates(false);
+      return;
+    }
+
+    try {
+      await onPostAction('configure fuel rates', '/api/tanks', {
+        action: 'update_rates',
+        userId: session.employeeId,
+        userName: session.name,
+        petrolRate: pRate,
+        dieselRate: dRate
+      });
+      setRateSuccessMsg(lang === 'en' ? 'Fuel rates updated successfully for all tanks!' : 'બધા બળતણ ના ભાવ સફળતાપૂર્વક અપડેટ થયા છે!');
+      setTimeout(() => setRateSuccessMsg(''), 4000);
+    } catch (err: any) {
+      setRateErrorMsg(err.message || 'Failed to update rates.');
+    } finally {
+      setIsUpdatingRates(false);
+    }
+  };
 
   const handleOpenAdd = () => {
     setIsEditing(null);
@@ -231,6 +286,84 @@ export default function TanksTab({ state, lang, session, onPostAction }: TanksTa
             </div>
           </form>
         </motion.div>
+      )}
+
+      {/* Bulk Fuel Rates Setter Panel */}
+      {isAdmin && (
+        <div className="bg-slate-800/90 border border-slate-700/60 rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center gap-2 border-b border-slate-700/40 pb-3">
+            <TrendingUp className="text-teal-400 w-5 h-5" />
+            <div>
+              <h3 className="font-bold text-slate-100 text-sm">
+                {lang === 'en' ? 'Quick Fuel Rate Config' : 'બળતણના દરો સેટ કરો'}
+              </h3>
+              <p className="text-[11px] text-slate-400 font-sans">
+                {lang === 'en' 
+                  ? 'Set the bulk price per liter of Petrol and Diesel for all calculating registries' 
+                  : 'પેટ્રોલ અને ડીઝલનો ભાવ અહીં સેટ કરો જેથી બધી ગણતરી આ મુજબ થાય.'}
+              </p>
+            </div>
+          </div>
+
+          {rateErrorMsg && (
+            <div className="p-2.5 bg-red-400/10 border border-red-500/20 text-red-400 text-xs rounded-lg text-center font-bold">
+              {rateErrorMsg}
+            </div>
+          )}
+
+          {rateSuccessMsg && (
+            <div className="p-2.5 bg-emerald-400/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-lg text-center font-bold">
+              {rateSuccessMsg}
+            </div>
+          )}
+
+          <form onSubmit={handleUpdateRates} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div>
+              <label className="block text-slate-350 text-xs font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>
+                {lang === 'en' ? 'Petrol Rate (₹/L)' : 'પેટ્રોલ નો ભાવ (₹/લીટર)'}
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={petrolInput}
+                onChange={(e) => setPetrolInput(e.target.value)}
+                onFocus={() => setIsFocused(prev => ({ ...prev, petrol: true }))}
+                onBlur={() => setIsFocused(prev => ({ ...prev, petrol: false }))}
+                className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-sm focus:outline-none focus:border-teal-500 font-mono"
+                placeholder="101.45"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-355 text-xs font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-yellow-450 inline-block"></span>
+                {lang === 'en' ? 'Diesel Rate (₹/L)' : 'ડીઝલ નો ભાવ (₹/લીટર)'}
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={dieselInput}
+                onChange={(e) => setDieselInput(e.target.value)}
+                onFocus={() => setIsFocused(prev => ({ ...prev, diesel: true }))}
+                onBlur={() => setIsFocused(prev => ({ ...prev, diesel: false }))}
+                className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-sm focus:outline-none focus:border-teal-500 font-mono"
+                placeholder="92.15"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isUpdatingRates}
+              className="px-4 py-2.5 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow transition-all cursor-pointer active:scale-95 h-[38px]"
+            >
+              <Check className="w-4 h-4" />
+              {isUpdatingRates 
+                ? (lang === 'en' ? 'Updating...' : 'અપડેટ થાય છે...') 
+                : (lang === 'en' ? 'Apply New Rates' : 'નવો ભાવ લાગુ કરો')}
+            </button>
+          </form>
+        </div>
       )}
 
       {/* Reservoir Tank rows and details */}

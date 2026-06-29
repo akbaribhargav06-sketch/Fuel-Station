@@ -19,6 +19,8 @@ export interface Employee {
   mobile: string;
   role: UserRole;
   active: boolean;
+  permissions?: string[];
+  assignedNozzles?: string[]; // IDs of nozzles this employee has access to
 }
 
 export interface FuelTank {
@@ -51,6 +53,10 @@ export interface NozzleReadingEntry {
   card: number; // payments received via Card
   creditSales: number; // payments via Local customer accounts (credit)
   creditClient: string; // name of credit customer (optional)
+  startedAt?: string; // Operator started shift timestamp
+  submittedAt?: string; // Operator submitted timestamp
+  elapsedTime?: string; // Duration string e.g. "2 hours 15 minutes"
+  isSubmitted?: boolean; // True if operator locked and sent this entry
 }
 
 export interface TankStockEntry {

@@ -295,6 +295,16 @@ export async function processOfflineAction(
     } else if (action === "delete") {
       dbState.tanks = dbState.tanks.filter(t => t.id !== tank.id);
       addOfflineLog(dbState, userId, userName, `Deleted Tank unit (Offline): ${tank.name}`);
+    } else if (action === "update_rates") {
+      const { petrolRate, dieselRate } = payload;
+      dbState.tanks.forEach(t => {
+        if (t.fuelType === 'petrol' && petrolRate !== undefined) {
+          t.customRate = Number(petrolRate);
+        } else if (t.fuelType === 'diesel' && dieselRate !== undefined) {
+          t.customRate = Number(dieselRate);
+        }
+      });
+      addOfflineLog(dbState, userId, userName, `Updated bulk rates (Offline) - Petrol: ₹${petrolRate}, Diesel: ₹${dieselRate}`);
     }
     return saveOfflineState(dbState);
   }

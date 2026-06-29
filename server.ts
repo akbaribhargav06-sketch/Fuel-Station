@@ -353,6 +353,16 @@ async function startServer() {
     } else if (action === 'delete') {
       dbData.tanks = dbData.tanks.filter(t => t.id !== tank.id);
       addSystemLog(dbData, userId, userName, `Deleted Fuel Tank: ${tank.name}`);
+    } else if (action === 'update_rates') {
+      const { petrolRate, dieselRate } = req.body;
+      dbData.tanks.forEach(t => {
+        if (t.fuelType === 'petrol' && petrolRate !== undefined) {
+          t.customRate = Number(petrolRate);
+        } else if (t.fuelType === 'diesel' && dieselRate !== undefined) {
+          t.customRate = Number(dieselRate);
+        }
+      });
+      addSystemLog(dbData, userId, userName, `Updated bulk rates - Petrol: ₹${petrolRate}, Diesel: ₹${dieselRate}`);
     }
 
     writeDB(dbData);

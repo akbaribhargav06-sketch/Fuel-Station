@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { translations, LanguageCode } from '../translations';
-import { SystemState, DailyShiftRecord, FuelTank, Nozzle } from '../types';
+import { SystemState, DailyShiftRecord, FuelTank, Nozzle, UserSession } from '../types';
 import { 
   Fuel, 
   Coins, 
@@ -16,23 +16,264 @@ import {
   TrendingUp,
   Droplet,
   ArrowRight,
-  RefreshCw
+  RefreshCw,
+  Info
 } from 'lucide-react';
 
 interface DashboardTabProps {
   state: SystemState;
   lang: LanguageCode;
   darkMode: boolean;
+  session: UserSession;
 }
 
-export default function DashboardTab({ state, lang, darkMode }: DashboardTabProps) {
+export default function DashboardTab({ state, lang, darkMode, session }: DashboardTabProps) {
   const t = translations[lang];
 
   // Derive today's values
   const todayDateStr = new Date().toISOString().split('T')[0];
   const todayRecords = state.records.filter(r => r.date === todayDateStr);
 
-  // Totals for today
+  // Custom fuel filler boy panel view
+  if (session.role === 'employee') {
+    // Collect specific operator stats for today
+    let operatorLitres = 0;
+    let operatorCash = 0;
+    let operatorUPI = 0;
+    let operatorCard = 0;
+    let operatorCredit = 0;
+    let assignedNozzles: Nozzle[] = [];
+
+    todayRecords.forEach(rec => {
+      Object.keys(rec.nozzleEntries).forEach(nozId => {
+        const entry = rec.nozzleEntries[nozId];
+        if (entry.operatorId === session.employeeId) {
+          const nozzle = state.nozzles.find(n => n.id === nozId);
+          if (nozzle) {
+            if (!assignedNozzles.some(n => n.id === nozzle.id)) {
+              assignedNozzles.push(nozzle);
+            }
+            const tank = state.tanks.find(tk => tk.id === nozzle.tankId);
+            const rate = tank ? tank.customRate : 100;
+            const sold = Math.max(0, entry.closingReading - entry.openingReading - (entry.testingLiters || 0));
+            operatorLitres += sold;
+            operatorCash += entry.cash || 0;
+            operatorUPI += entry.upi || 0;
+            operatorCard += entry.card || 0;
+            operatorCredit += entry.creditSales || 0;
+          }
+        }
+      });
+    });
+
+    const operatorTotalMoney = operatorCash + operatorUPI + operatorCard + operatorCredit;
+
+    return (
+      <div className="space-y-6" id="operator_dashboard_panel">
+        {/* Operator Header greeting banner */}
+        <div className="bg-gradient-to-r from-teal-500/10 to-transparent border border-teal-500/20 rounded-2xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-5">
+            <Fuel className="w-40 h-40" />
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="space-y-1">
+              <span className="text-teal-405 text-xs font-bold uppercase tracking-widest font-mono block">
+                {lang === 'en' ? 'PUMP OPERATOR PORTAL' : 'પંપ ઓપરેટર કંટ્રોલ પેનલ'}
+              </span>
+              <h2 className="text-xl md:text-2xl font-bold text-slate-100 tracking-tight">
+                {t.welcome}, {session.name}!
+              </h2>
+              <p className="text-slate-400 text-xs sm:text-sm">
+                {lang === 'en' 
+                  ? 'Have a safe and productive shift today. Keep your fuel meters matched!' 
+                  : 'આજની શિફ્ટ માટે શુભકામનાઓ. તમારા ફ્યુઅલ રીડીંગ અને વકરો મેળવતા રહો!'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 self-start sm:self-center">
+              <span className="h-2.5 w-2.5 bg-green-500 rounded-full animate-pulse"></span>
+              <span className="text-[10px] text-slate-300 font-bold font-mono uppercase bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-700/45">
+                {lang === 'en' ? 'Shift Active' : 'શિફ્ટ ચાલુ છે'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Today's Fuel Rates (Quick References) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {state.tanks.map((tank) => (
+            <div 
+              key={tank.id} 
+              className={`border rounded-2xl p-5 shadow-sm transition-all hover:border-teal-500/30 flex items-center justify-between ${
+                tank.fuelType === 'petrol' 
+                  ? 'bg-blue-500/5 border-blue-500/10 hover:border-blue-500/20' 
+                  : 'bg-yellow-500/5 border-yellow-500/10 hover:border-yellow-500/20'
+              }`}
+            >
+              <div className="flex items-center gap-4">
+                <div className={`p-3 rounded-xl border ${
+                  tank.fuelType === 'petrol' 
+                    ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' 
+                    : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                }`}>
+                  <Fuel className="w-6 h-6" />
+                </div>
+                <div>
+                  <span className="text-slate-450 text-[10px] font-bold uppercase tracking-wider block">
+                    {lang === 'en' ? `${tank.name} Rate` : `${tank.name} નો ભાવ`}
+                  </span>
+                  <span className="text-xl font-black font-mono tracking-tight text-slate-100 block mt-0.5">
+                    ₹{tank.customRate.toFixed(2)} <span className="text-xs text-slate-500">/ L</span>
+                  </span>
+                </div>
+              </div>
+              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                tank.fuelType === 'petrol' ? 'bg-blue-500/10 text-blue-450' : 'bg-yellow-500/10 text-yellow-450'
+              }`}>
+                {tank.fuelType === 'petrol' ? t.petrol : t.diesel}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Operator Stats for Today */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Total Litres Dispensed */}
+          <div className="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-5 flex items-center gap-4">
+            <div className="p-3 bg-cyan-500/10 text-cyan-400 rounded-xl border border-cyan-500/20">
+              <TrendingUp className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="text-slate-400 text-xs font-semibold block uppercase tracking-wider">
+                {lang === 'en' ? 'Your Fuel Sales' : 'તમારું વેચાણ (લીટર)'}
+              </span>
+              <span className="text-slate-100 text-xl font-bold font-mono tracking-tight my-0.5 block">
+                {operatorLitres.toFixed(1)} L
+              </span>
+              <span className="text-slate-500 text-[10px] block font-semibold uppercase tracking-wider">
+                {lang === 'en' ? 'across assigned nozzles' : 'તમારી સોંપાયેલ નોઝલ પર'}
+              </span>
+            </div>
+          </div>
+
+          {/* Total Money Recorded */}
+          <div className="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-5 flex items-center gap-4">
+            <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+              <Coins className="w-6 h-6" />
+            </div>
+            <div>
+              <span className="text-slate-400 text-xs font-semibold block uppercase tracking-wider">
+                {lang === 'en' ? 'Your Recorded Proceeds' : 'તમારી નોંધાયેલ આવક'}
+              </span>
+              <span className="text-slate-100 text-xl font-bold font-mono tracking-tight my-0.5 block">
+                ₹{operatorTotalMoney.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </span>
+              <span className="text-slate-500 text-[10px] block">
+                Cash: ₹{operatorCash.toLocaleString()} | UPI: ₹{operatorUPI.toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          {/* Assigned Nozzles list card */}
+          <div className="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-5 flex items-center gap-4 sm:col-span-2 lg:col-span-1">
+            <div className="p-3 bg-purple-500/10 text-purple-400 rounded-xl border border-purple-500/20">
+              <MapPin className="w-6 h-6" />
+            </div>
+            <div className="flex-1">
+              <span className="text-slate-400 text-xs font-semibold block uppercase tracking-wider">
+                {lang === 'en' ? 'Assigned Nozzles' : 'તમારી એલોટેડ નોઝલ'}
+              </span>
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {assignedNozzles.length === 0 ? (
+                  <span className="text-xs text-slate-550 italic">
+                    {lang === 'en' ? 'No active nozzles linked to you today' : 'કોઈ સક્રિય નોઝલ લિંક નથી'}
+                  </span>
+                ) : (
+                  assignedNozzles.map(noz => (
+                    <span 
+                      key={noz.id} 
+                      className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider border ${
+                        noz.fuelType === 'petrol' 
+                          ? 'bg-blue-400/10 text-blue-400 border-blue-500/20' 
+                          : 'bg-yellow-400/10 text-yellow-550 border-yellow-500/20'
+                      }`}
+                    >
+                      {noz.nozzleNumber}
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Collections Breakdown Details */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="bg-slate-800/90 rounded-2xl border border-slate-700/60 p-5 space-y-4">
+            <h3 className="font-bold text-slate-200 text-sm font-sans flex items-center gap-2">
+              <Coins className="w-4 h-4 text-teal-400" />
+              {lang === 'en' ? 'Your Payment Collections Summary' : 'તમારી પેમેન્ટ વિગતો મેળવણી'}
+            </h3>
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/30 text-center">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wide">Cash (રોકડા)</span>
+                <span className="text-base md:text-lg font-bold font-mono text-emerald-400 mt-1 block">₹{operatorCash.toLocaleString()}</span>
+              </div>
+              <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/30 text-center">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wide">UPI (ફોનપે / જીપે)</span>
+                <span className="text-base md:text-lg font-bold font-mono text-cyan-400 mt-1 block">₹{operatorUPI.toLocaleString()}</span>
+              </div>
+              <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/30 text-center">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wide">POS Cards</span>
+                <span className="text-base md:text-lg font-bold font-mono text-purple-400 mt-1 block">₹{operatorCard.toLocaleString()}</span>
+              </div>
+              <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-700/30 text-center">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wide">Udhaar (ઉધાર)</span>
+                <span className="text-base md:text-lg font-bold font-mono text-amber-400 mt-1 block">₹{operatorCredit.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Guidelines Card */}
+          <div className="bg-slate-800/90 rounded-2xl border border-slate-700/60 p-5 space-y-4">
+            <h3 className="font-bold text-slate-200 text-sm font-sans flex items-center gap-2">
+              <Info className="w-4 h-4 text-teal-400" />
+              {lang === 'en' ? 'Shift Duty Guidelines' : 'શિફ્ટ સમય દરમિયાન ખાસ નિયમો'}
+            </h3>
+
+            <ol className="text-slate-400 text-xs space-y-2.5 font-sans leading-relaxed list-decimal pl-4">
+              <li>
+                <strong className="text-slate-300">{lang === 'en' ? 'Verify Nozzle Opening:' : 'શરૂઆતનું રીડીંગ મેળવવું:'}</strong>{' '}
+                {lang === 'en' 
+                  ? 'Ensure previous shifts nozzle closing level exactly matches your opening meter reading.' 
+                  : 'તમારી શિફ્ટ ચાલુ થાય ત્યારે આગળની શિફ્ટનું છેલ્લું રીડીંગ તમારા શરૂઆતના રીડીંગ સાથે મેળવે છે કે નહીં તે ચેક કરો.'}
+              </li>
+              <li>
+                <strong className="text-slate-300">{lang === 'en' ? 'Verify UPI Payments:' : 'ઓનલાઇન ક્યુઆર પેમેન્ટ્સ:'}</strong>{' '}
+                {lang === 'en' 
+                  ? 'Cross-check PhonePe / GPay notification sound alerts or sms before confirming fuel releases.' 
+                  : 'ગ્રાહકના ફોનપે કે જીપે પેમેન્ટ ટ્રાન્સફરની સાઉન્ડ બોક્સ એલર્ટ સાંભળ્યા પછી જ ગાડી જવા દેવી.'}
+              </li>
+              <li>
+                <strong className="text-slate-300">{lang === 'en' ? 'Issue Credit Slips:' : 'ઉધાર ખાતા બિલ (Slips):'}</strong>{' '}
+                {lang === 'en' 
+                  ? 'Always log and write down the customer vehicle number for local credit diary accounts.' 
+                  : 'ઉધાર ગ્રાહકો માટે ફરજિયાત વાહન નંબર અને ગ્રાહકનું નામ તમારી બુકમાં અથવા ઉધાર બિલ સ્લિપમાં નોંધી લેવું.'}
+              </li>
+              <li>
+                <strong className="text-slate-300">{lang === 'en' ? 'Daily Reconciliation:' : 'દૈનિક એન્ટ્રી સમયસર કરો:'}</strong>{' '}
+                {lang === 'en' 
+                  ? 'Quickly save your operator readings draft before handing over nozzle feeds to the next attendant.' 
+                  : 'તમારી ડ્યુટી પૂર્ણ થાય ત્યારે સમયસર તમારા નોઝલ રીડીંગ અને રોકડ હિસાબ "દૈનિક એન્ટ્રી" વિભાગમાં નોંધી લેવી.'}
+              </li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Totals for today (Managers & Admins dashboard)
   let totalDailyLitres = 0;
   let totalDailyRevenue = 0;
   let totalCash = 0;

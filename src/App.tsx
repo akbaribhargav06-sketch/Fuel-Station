@@ -24,7 +24,8 @@ import {
   Moon,
   Info,
   Coins,
-  Layers
+  Layers,
+  LogOut
 } from 'lucide-react';
 
 import DashboardTab from './components/DashboardTab';
@@ -37,6 +38,7 @@ import ReportsTab from './components/ReportsTab';
 import LogsTab from './components/LogsTab';
 import UdhaarKhataTab from './components/UdhaarKhataTab';
 import DayBookTab from './components/DayBookTab';
+import LoginScreen from './components/LoginScreen';
 import { getOfflineState, processOfflineAction } from './utils/offlineDb';
 
 export default function App() {
@@ -48,11 +50,21 @@ export default function App() {
     return localStorage.getItem('pump_erp_theme') === 'light' ? false : true; // default dark
   });
   
-  // Auth state is bypassed by default to an Administrator session
-  const [session, setSession] = useState<UserSession>({
-    employeeId: 'admin-bypass',
-    name: 'Administrator',
-    role: 'admin'
+  // Auth state is loaded from localStorage or defaults to an Administrator session
+  const [session, setSession] = useState<UserSession | null>(() => {
+    const saved = localStorage.getItem('pump_erp_session');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse saved session", e);
+      }
+    }
+    return {
+      employeeId: 'admin-bypass',
+      name: 'Administrator',
+      role: 'admin'
+    };
   });
 
   // Navigation states
@@ -146,7 +158,59 @@ export default function App() {
 
   const t = translations[lang];
 
+  // Helper to resolve custom permissions for employees
+  const hasPermission = (perm: string) => {
+    if (!session) return false;
+    if (session.role === 'admin') return true;
 
+    // Look up active employee profile to check customizable permissions
+    const empProfile = state?.employees.find(e => e.id === session.employeeId);
+    if (empProfile && empProfile.permissions) {
+      return empProfile.permissions.includes(perm);
+    }
+
+    // Fallback static defaults
+    if (session.role === 'manager') {
+      return ['shifts', 'tanks', 'customers', 'credit', 'daybook', 'reports'].includes(perm);
+    }
+    if (session.role === 'employee') {
+      return ['shifts'].includes(perm);
+    }
+    return false;
+  };
+
+  // Sidebar responsive classes
+  const menuItems = [
+    { id: 'dashboard', label: t.dashboard, icon: Activity, permission: 'dashboard' },
+    { id: 'entries', label: t.dailyEntries, icon: CalendarDays, permission: 'shifts' },
+    { id: 'udhaar', label: t.udhaarKhata, icon: Coins, permission: 'credit' },
+    { id: 'daybook', label: t.dayBook, icon: Layers, permission: 'daybook' },
+    { id: 'reports', label: t.reports, icon: TrendingUp, permission: 'reports' },
+    { id: 'shifts', label: t.shiftMgmt, icon: Clock, permission: 'shifts' },
+    { id: 'employeeMgmt', label: t.employeeMgmt, icon: Users, permission: 'employees' },
+    { id: 'nozzleMgmt', label: t.nozzleMgmt, icon: Settings, permission: 'nozzles' },
+    { id: 'tankMgmt', label: t.tankMgmt, icon: Droplet, permission: 'tanks' },
+    { id: 'logs', label: t.systemLogs, icon: Database, permission: 'employees' },
+  ];
+
+  const visibleMenuItems = menuItems.filter(item => {
+    if (item.id === 'dashboard') return true;
+    if (item.id === 'shifts') {
+      // Shift configuration settings require shifts permission AND a role of admin or manager
+      return (session?.role === 'admin' || session?.role === 'manager') && hasPermission('shifts');
+    }
+    return hasPermission(item.permission);
+  });
+
+  // Safety redirect to prevent accessing an unauthorized activeTab
+  useEffect(() => {
+    if (session) {
+      const isAllowed = visibleMenuItems.some(item => item.id === activeTab || (item.id === 'employeeMgmt' && activeTab === 'employees'));
+      if (!isAllowed) {
+        setActiveTab('dashboard');
+      }
+    }
+  }, [session, activeTab, state]);
 
   // Loader states
   if (loading && !state) {
@@ -160,21 +224,20 @@ export default function App() {
     );
   }
 
-  // Sidebar responsive classes
-  const menuItems = [
-    { id: 'dashboard', label: t.dashboard, icon: Activity, roles: ['admin', 'manager', 'employee'] },
-    { id: 'entries', label: t.dailyEntries, icon: CalendarDays, roles: ['admin', 'manager', 'employee'] },
-    { id: 'udhaar', label: t.udhaarKhata, icon: Coins, roles: ['admin', 'manager', 'employee'] },
-    { id: 'daybook', label: t.dayBook, icon: Layers, roles: ['admin', 'manager', 'employee'] },
-    { id: 'reports', label: t.reports, icon: TrendingUp, roles: ['admin', 'manager'] },
-    { id: 'shifts', label: t.shiftMgmt, icon: Clock, roles: ['admin'] },
-    { id: 'employeeMgmt', label: t.employeeMgmt, icon: Users, roles: ['admin'] },
-    { id: 'nozzleMgmt', label: t.nozzleMgmt, icon: Settings, roles: ['admin'] },
-    { id: 'tankMgmt', label: t.tankMgmt, icon: Droplet, roles: ['admin'] },
-    { id: 'logs', label: t.systemLogs, icon: Database, roles: ['admin'] },
-  ];
-
-  const visibleMenuItems = menuItems.filter(item => item.roles.includes(session.role));
+  // Render LoginScreen if operator is not authenticated
+  if (!session) {
+    return (
+      <LoginScreen 
+        lang={lang} 
+        langToggle={toggleLanguage} 
+        onLoginSuccess={(newSession) => {
+          localStorage.setItem('pump_erp_session', JSON.stringify(newSession));
+          setSession(newSession);
+          setActiveTab('dashboard');
+        }} 
+      />
+    );
+  }
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-slate-950 text-slate-100 dark-mode-active' : 'bg-slate-50 text-slate-900'} flex flex-col font-sans selection:bg-teal-500 selection:text-slate-900`} id="main_layout">
@@ -236,6 +299,19 @@ export default function App() {
             {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
           </button>
 
+          {/* Logout button */}
+          <button
+            onClick={() => {
+              localStorage.removeItem('pump_erp_session');
+              setSession(null);
+            }}
+            className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm"
+            title="Log Out (લૉગ આઉટ)"
+            id="header_logout_btn"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline text-xs font-semibold">{lang === 'en' ? 'Logout' : 'લૉગ આઉટ'}</span>
+          </button>
 
         </div>
       </header>
@@ -247,29 +323,45 @@ export default function App() {
         <aside className={`w-64 flex-shrink-0 border-r border-slate-800 md:block transition-all duration-300 absolute md:relative z-35 h-full ${
           darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-205 shadow-sm'
         } ${mobileSidebarOpen ? 'left-0 block' : '-left-64 md:left-0 hidden'}`}>
-          <nav className="p-4 space-y-1.5">
-            {visibleMenuItems.map((item) => {
-              const Icon = item.icon;
-              const isSelected = activeTab === item.id || (item.id === 'employeeMgmt' && activeTab === 'employees');
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id as any);
-                    setMobileSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold tracking-wider font-sans uppercase text-left transition-all duration-150 cursor-pointer ${
-                    isSelected
-                      ? 'bg-gradient-to-r from-teal-500/15 to-teal-500/5 text-teal-400 border-l-4 border-l-teal-400'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850/40'
-                  }`}
-                >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
+          <div className="flex flex-col h-full justify-between">
+            <nav className="p-4 space-y-1.5 flex-1">
+              {visibleMenuItems.map((item) => {
+                const Icon = item.icon;
+                const isSelected = activeTab === item.id || (item.id === 'employeeMgmt' && activeTab === 'employees');
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab(item.id as any);
+                      setMobileSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold tracking-wider font-sans uppercase text-left transition-all duration-150 cursor-pointer ${
+                      isSelected
+                        ? 'bg-gradient-to-r from-teal-500/15 to-teal-500/5 text-teal-400 border-l-4 border-l-teal-400'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850/40'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+            
+            {/* Sidebar bottom persistent Logout item */}
+            <div className="p-4 border-t border-slate-800/60 bg-slate-900/40">
+              <button
+                onClick={() => {
+                  localStorage.removeItem('pump_erp_session');
+                  setSession(null);
+                }}
+                className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold tracking-wider font-sans uppercase text-left text-red-400 hover:text-red-350 hover:bg-red-500/10 transition-all duration-150 cursor-pointer border border-red-500/10"
+              >
+                <LogOut className="w-4 h-4 flex-shrink-0" />
+                <span>{lang === 'en' ? 'Log Out' : 'લૉગ આઉટ'}</span>
+              </button>
+            </div>
+          </div>
         </aside>
 
         {/* Content container body right */}
@@ -315,6 +407,7 @@ export default function App() {
                   state={state} 
                   lang={lang} 
                   darkMode={darkMode} 
+                  session={session}
                 />
               )}
               {activeTab === 'entries' && (

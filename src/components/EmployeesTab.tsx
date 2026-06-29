@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { translations, LanguageCode } from '../translations';
 import { SystemState, Employee, UserSession } from '../types';
-import { Users, UserPlus, Trash2, Edit3, MessageSquare, ShieldCheck, UserCog, Check } from 'lucide-react';
+import { Users, UserPlus, Trash2, Edit3, MessageSquare, ShieldCheck, UserCog, Check, Fuel } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface EmployeesTabProps {
@@ -20,19 +20,46 @@ export default function EmployeesTab({ state, lang, session, onPostAction }: Emp
   const t = translations[lang];
   const isAdmin = session.role === 'admin';
 
+  // Permission option definitions
+  const permissionOptions = [
+    { key: 'shifts', label: 'Daily Nozzle Entries', labelGu: 'દૈનિક એન્ટ્રી' },
+    { key: 'tanks', label: 'Manage Tanks & Rates', labelGu: 'ટાંકી સ્ટોક/ભાવો' },
+    { key: 'nozzles', label: 'Configure Nozzles', labelGu: 'નોઝલ સેટિંગ્સ' },
+    { key: 'customers', label: 'Credit Customers', labelGu: 'ઉધાર ગ્રાહકો' },
+    { key: 'credit', label: 'Issue Slips (Udhaar)', labelGu: 'ઉધાર બિલ (Slips)' },
+    { key: 'daybook', label: 'Daily Day Book', labelGu: 'રોજમેળ મેળ' },
+    { key: 'employees', label: 'Employee Access', labelGu: 'કર્મચારી એક્સેસ' },
+    { key: 'reports', label: 'View Reports', labelGu: 'વિગતવાર રિપોર્ટ' },
+  ];
+
   // Local state managers
   const [showForm, setShowForm] = useState(false);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
   const [role, setRole] = useState<'admin' | 'manager' | 'employee'>('employee');
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [assignedNozzles, setAssignedNozzles] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
+
+  const handleRoleChange = (selectedRole: 'admin' | 'manager' | 'employee') => {
+    setRole(selectedRole);
+    if (selectedRole === 'admin') {
+      setPermissions(['shifts', 'tanks', 'nozzles', 'customers', 'credit', 'daybook', 'employees', 'reports']);
+    } else if (selectedRole === 'manager') {
+      setPermissions(['shifts', 'tanks', 'customers', 'credit', 'daybook', 'reports']);
+    } else {
+      setPermissions(['shifts']);
+    }
+  };
 
   const handleOpenAdd = () => {
     setIsEditing(null);
     setName('');
     setMobile('');
     setRole('employee');
+    setPermissions(['shifts']);
+    setAssignedNozzles(state.nozzles.filter(n => n.active).map(n => n.id)); // default to all active
     setErrorMsg('');
     setShowForm(true);
   };
@@ -42,6 +69,12 @@ export default function EmployeesTab({ state, lang, session, onPostAction }: Emp
     setName(emp.name);
     setMobile(emp.mobile);
     setRole(emp.role);
+    setPermissions(emp.permissions || (emp.role === 'admin' 
+      ? ['shifts', 'tanks', 'nozzles', 'customers', 'credit', 'daybook', 'employees', 'reports'] 
+      : emp.role === 'manager' 
+        ? ['shifts', 'tanks', 'customers', 'credit', 'daybook', 'reports'] 
+        : ['shifts']));
+    setAssignedNozzles(emp.assignedNozzles || state.nozzles.filter(n => n.active).map(n => n.id));
     setErrorMsg('');
     setShowForm(true);
   };
@@ -66,7 +99,9 @@ export default function EmployeesTab({ state, lang, session, onPostAction }: Emp
         id: isEditing || undefined,
         name: name.trim(),
         mobile: mobile.trim(),
-        role
+        role,
+        permissions,
+        assignedNozzles
       }
     };
 
@@ -179,7 +214,7 @@ export default function EmployeesTab({ state, lang, session, onPostAction }: Emp
                 <label className="block text-slate-300 text-xs font-semibold uppercase tracking-wider mb-1.5">{t.staffRole}</label>
                 <select
                   value={role}
-                  onChange={(e) => setRole(e.target.value as any)}
+                  onChange={(e) => handleRoleChange(e.target.value as any)}
                   className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-sm focus:outline-none focus:border-teal-500 cursor-pointer"
                 >
                   <option value="employee">{t.employeeRole}</option>
@@ -189,12 +224,92 @@ export default function EmployeesTab({ state, lang, session, onPostAction }: Emp
               </div>
             </div>
 
+            {/* Custom Access Permissions Checkbox Grid */}
+            <div className="border-t border-slate-700/40 pt-3.5 space-y-2">
+              <label className="block text-slate-300 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-teal-400">
+                <ShieldCheck className="w-4 h-4" />
+                {lang === 'en' ? 'Custom Module Permissions' : 'એક્સેસ મોડ્યુલ મંજૂરીઓ'}
+              </label>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-900/40 p-3 rounded-xl border border-slate-700/30">
+                {permissionOptions.map((opt) => {
+                  const checked = permissions.includes(opt.key);
+                  return (
+                    <label 
+                      key={opt.key} 
+                      className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer transition-all border ${
+                        checked 
+                          ? 'bg-teal-500/10 border-teal-500/30 text-slate-200' 
+                          : 'bg-slate-900/30 border-slate-800 hover:border-slate-700/50 text-slate-400'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setPermissions([...permissions, opt.key]);
+                          } else {
+                            setPermissions(permissions.filter(p => p !== opt.key));
+                          }
+                        }}
+                        className="mt-0.5 rounded border-slate-700 bg-slate-900 text-teal-500 focus:ring-teal-500 cursor-pointer h-3.5 w-3.5 shrink-0"
+                      />
+                      <div className="text-[11px] leading-tight select-none">
+                        <span className="font-semibold block">{lang === 'en' ? opt.label : opt.labelGu}</span>
+                        <span className="text-[8.5px] text-slate-500 block uppercase tracking-wide">Key: {opt.key}</span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom Nozzle Assignments (Which nozzles does this operator have access to?) */}
+            <div className="border-t border-slate-700/40 pt-3.5 space-y-2">
+              <label className="block text-slate-300 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-teal-400">
+                <Fuel className="w-4 h-4" />
+                {lang === 'en' ? 'Assigned Nozzles (Access Control)' : 'આપેલ નોઝલ પરવાનગી (એક્સેસ કંટ્રોલ)'}
+              </label>
+              <div className="flex flex-wrap gap-2 bg-slate-900/40 p-3 rounded-xl border border-slate-700/30">
+                {state.nozzles.map((nozzle) => {
+                  const isChecked = assignedNozzles.includes(nozzle.id);
+                  return (
+                    <button
+                      key={nozzle.id}
+                      type="button"
+                      onClick={() => {
+                        if (isChecked) {
+                          setAssignedNozzles(assignedNozzles.filter(id => id !== nozzle.id));
+                        } else {
+                          setAssignedNozzles([...assignedNozzles, nozzle.id]);
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-all ${
+                        isChecked
+                          ? 'bg-teal-500/10 border-teal-500/40 text-teal-400'
+                          : 'bg-slate-900/40 border-slate-700/50 text-slate-400 hover:text-slate-300'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${isChecked ? 'bg-teal-400 animate-pulse' : 'bg-slate-600'}`}></span>
+                      <span>Nozzle {nozzle.nozzleNumber} ({nozzle.fuelType.toUpperCase()})</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-slate-500">
+                {lang === 'en' 
+                  ? 'Only checked nozzles will be visible on this employee\'s daily entry panel.' 
+                  : 'ફક્ત પસંદ કરેલી નોઝલ જ આ કર્મચારીની એન્ટ્રી પેનલ પર દેખાશે.'}
+              </p>
+            </div>
+
             <div className="bg-slate-900/60 p-3 rounded-lg border border-slate-700/30 text-[10.5px] text-slate-400 leading-relaxed space-y-1">
               <span className="font-bold text-slate-300 block mb-1">Authorization Security PIN:</span>
               <p>• {t.adminRole} PIN: <span className="font-mono text-teal-400 font-bold bg-slate-800 px-1.5 py-0.5 rounded">1234</span></p>
               <p>• {t.managerRole} PIN: <span className="font-mono text-teal-400 font-bold bg-slate-800 px-1.5 py-0.5 rounded">5678</span></p>
               <p>• {t.employeeRole} PIN: <span className="font-mono text-teal-400 font-bold bg-slate-800 px-1.5 py-0.5 rounded">0000</span></p>
-              <p className="text-[10px] text-slate-500 italic mt-1">Managers can save shift readings, while Admins enjoy global configuration controls.</p>
+              <p className="text-[10px] text-slate-500 italic mt-1">These PINs are checked during the secure login verification process.</p>
             </div>
 
             <div className="flex justify-end gap-2 pt-3 border-t border-slate-700/50">
@@ -225,6 +340,8 @@ export default function EmployeesTab({ state, lang, session, onPostAction }: Emp
                 <th className="py-3 px-4">{t.name}</th>
                 <th className="py-3 px-4">{t.mobileNumber}</th>
                 <th className="py-3 px-4">{t.role}</th>
+                <th className="py-3 px-4">Permissions (એક્સેસ)</th>
+                <th className="py-3 px-4">Assigned Nozzles (નોઝલ)</th>
                 <th className="py-3 px-4">{t.status}</th>
                 <th className="py-3 px-4 text-center">Bypass PIN</th>
                 {isAdmin && <th className="py-3 px-4 text-right">{t.actions}</th>}
@@ -248,6 +365,37 @@ export default function EmployeesTab({ state, lang, session, onPostAction }: Emp
                     }`}>
                       {emp.role === 'admin' ? t.adminRole : emp.role === 'manager' ? t.managerRole : t.employeeRole}
                     </span>
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <div className="flex flex-wrap gap-1 max-w-[220px]">
+                      {(emp.permissions || (emp.role === 'admin' 
+                        ? ['shifts', 'tanks', 'nozzles', 'customers', 'credit', 'daybook', 'employees', 'reports'] 
+                        : emp.role === 'manager' 
+                          ? ['shifts', 'tanks', 'customers', 'credit', 'daybook', 'reports'] 
+                          : ['shifts'])).map(perm => (
+                        <span key={perm} className="bg-slate-900/60 text-slate-400 text-[8.5px] px-1.5 py-0.5 rounded border border-slate-700/40 font-mono uppercase tracking-wider" title={perm}>
+                          {perm === 'shifts' ? 'Entries' : perm === 'tanks' ? 'Tanks' : perm === 'nozzles' ? 'Nozzles' : perm === 'customers' ? 'Cust' : perm === 'credit' ? 'Credit' : perm === 'daybook' ? 'DayBk' : perm === 'employees' ? 'Emp' : 'Rep'}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <div className="flex flex-wrap gap-1 max-w-[200px]">
+                      {emp.role === 'admin' ? (
+                        <span className="text-slate-500 italic text-[10px]">{lang === 'en' ? 'All Nozzles' : 'બધી નોઝલ'}</span>
+                      ) : !emp.assignedNozzles || emp.assignedNozzles.length === 0 ? (
+                        <span className="text-red-400 italic text-[10px]">{lang === 'en' ? 'None' : 'એકપણ નહીં'}</span>
+                      ) : (
+                        emp.assignedNozzles.map(nozId => {
+                          const nz = state.nozzles.find(n => n.id === nozId);
+                          return nz ? (
+                            <span key={nozId} className="bg-teal-500/10 text-teal-400 text-[9px] font-bold px-1.5 py-0.5 rounded border border-teal-500/20 font-mono">
+                              N{nz.nozzleNumber}
+                            </span>
+                          ) : null;
+                        })
+                      )}
+                    </div>
                   </td>
                   <td className="py-3.5 px-4">
                     <span className={`text-[10px] font-bold ${emp.active ? 'text-green-400' : 'text-slate-500'}`}>
