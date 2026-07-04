@@ -25,9 +25,9 @@ export default function TanksTab({ state, lang, session, onPostAction }: TanksTa
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [fuelType, setFuelType] = useState<'petrol' | 'diesel'>('petrol');
-  const [capacity, setCapacity] = useState<number>(20000);
-  const [openingStock, setOpeningStock] = useState<number>(10000);
-  const [customRate, setCustomRate] = useState<number>(101.45);
+  const [capacity, setCapacity] = useState<string>('20000');
+  const [openingStock, setOpeningStock] = useState<string>('10000');
+  const [customRate, setCustomRate] = useState<string>('101.45');
   const [errorMsg, setErrorMsg] = useState('');
 
   // Bulk rate setters
@@ -36,22 +36,17 @@ export default function TanksTab({ state, lang, session, onPostAction }: TanksTa
 
   const [petrolInput, setPetrolInput] = useState(petrolRateVal.toString());
   const [dieselInput, setDieselInput] = useState(dieselRateVal.toString());
-  const [isFocused, setIsFocused] = useState({ petrol: false, diesel: false });
   const [isUpdatingRates, setIsUpdatingRates] = useState(false);
   const [rateErrorMsg, setRateErrorMsg] = useState('');
   const [rateSuccessMsg, setRateSuccessMsg] = useState('');
 
   React.useEffect(() => {
-    if (!isFocused.petrol) {
-      setPetrolInput(petrolRateVal.toString());
-    }
-  }, [petrolRateVal, isFocused.petrol]);
+    setPetrolInput(petrolRateVal.toString());
+  }, [petrolRateVal]);
 
   React.useEffect(() => {
-    if (!isFocused.diesel) {
-      setDieselInput(dieselRateVal.toString());
-    }
-  }, [dieselRateVal, isFocused.diesel]);
+    setDieselInput(dieselRateVal.toString());
+  }, [dieselRateVal]);
 
   const handleUpdateRates = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,9 +84,9 @@ export default function TanksTab({ state, lang, session, onPostAction }: TanksTa
     setIsEditing(null);
     setName(`Tank ${state.tanks.length + 1}`);
     setFuelType('petrol');
-    setCapacity(20000);
-    setOpeningStock(15000);
-    setCustomRate(101.45);
+    setCapacity('20000');
+    setOpeningStock('15000');
+    setCustomRate('101.45');
     setErrorMsg('');
     setShowForm(true);
   };
@@ -100,9 +95,9 @@ export default function TanksTab({ state, lang, session, onPostAction }: TanksTa
     setIsEditing(tank.id);
     setName(tank.name);
     setFuelType(tank.fuelType);
-    setCapacity(tank.capacity);
-    setOpeningStock(tank.openingStock);
-    setCustomRate(tank.customRate);
+    setCapacity(tank.capacity.toString());
+    setOpeningStock(tank.openingStock.toString());
+    setCustomRate(tank.customRate.toString());
     setErrorMsg('');
     setShowForm(true);
   };
@@ -110,12 +105,16 @@ export default function TanksTab({ state, lang, session, onPostAction }: TanksTa
   // Submit Tank addition/edit to server
   const handleSubmitTank = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !capacity || !customRate) {
+    const capNum = parseFloat(capacity);
+    const rateNum = parseFloat(customRate);
+    const stockNum = parseFloat(openingStock);
+
+    if (!name.trim() || isNaN(capNum) || isNaN(rateNum)) {
       setErrorMsg(lang === 'en' ? 'Tank Name, Capacity, and fuel selling Rate are required.' : 'ટાંકીનું નામ, ક્ષમતા અને બળતણનો ભાવ આપવો ફરજિયાત છે.');
       return;
     }
 
-    if (capacity <= 0 || customRate <= 0) {
+    if (capNum <= 0 || rateNum <= 0) {
       setErrorMsg(lang === 'en' ? 'Capacity and Rate must be valid positive numbers.' : 'ક્ષમતા અને ભાવ પોઝીટીવ સંખ્યા હોવા જોઈએ.');
       return;
     }
@@ -128,9 +127,9 @@ export default function TanksTab({ state, lang, session, onPostAction }: TanksTa
         id: isEditing || undefined,
         name: name.trim(),
         fuelType,
-        capacity: Number(capacity),
-        openingStock: Number(openingStock),
-        customRate: Number(customRate)
+        capacity: capNum,
+        openingStock: isNaN(stockNum) ? 0 : stockNum,
+        customRate: rateNum
       }
     };
 
@@ -226,7 +225,7 @@ export default function TanksTab({ state, lang, session, onPostAction }: TanksTa
                   onChange={(e) => {
                     const type = e.target.value as 'petrol' | 'diesel';
                     setFuelType(type);
-                    setCustomRate(type === 'petrol' ? 101.45 : 92.15);
+                    setCustomRate(type === 'petrol' ? '101.45' : '92.15');
                   }}
                   className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-sm focus:outline-none focus:border-teal-500 cursor-pointer"
                 >
@@ -241,7 +240,7 @@ export default function TanksTab({ state, lang, session, onPostAction }: TanksTa
                   type="number"
                   step="0.01"
                   value={customRate}
-                  onChange={(e) => setCustomRate(parseFloat(e.target.value) || 0)}
+                  onChange={(e) => setCustomRate(e.target.value)}
                   className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-sm focus:outline-none focus:border-teal-500 font-mono"
                 />
               </div>
@@ -253,7 +252,7 @@ export default function TanksTab({ state, lang, session, onPostAction }: TanksTa
                 <input
                   type="number"
                   value={capacity}
-                  onChange={(e) => setCapacity(parseInt(e.target.value) || 0)}
+                  onChange={(e) => setCapacity(e.target.value)}
                   className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-sm focus:outline-none focus:border-teal-500 font-mono"
                 />
               </div>
@@ -263,7 +262,7 @@ export default function TanksTab({ state, lang, session, onPostAction }: TanksTa
                 <input
                   type="number"
                   value={openingStock}
-                  onChange={(e) => setOpeningStock(parseFloat(e.target.value) || 0)}
+                  onChange={(e) => setOpeningStock(e.target.value)}
                   className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-sm focus:outline-none focus:border-teal-500 font-mono"
                 />
               </div>
@@ -328,8 +327,6 @@ export default function TanksTab({ state, lang, session, onPostAction }: TanksTa
                 step="0.01"
                 value={petrolInput}
                 onChange={(e) => setPetrolInput(e.target.value)}
-                onFocus={() => setIsFocused(prev => ({ ...prev, petrol: true }))}
-                onBlur={() => setIsFocused(prev => ({ ...prev, petrol: false }))}
                 className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-sm focus:outline-none focus:border-teal-500 font-mono"
                 placeholder="101.45"
               />
@@ -345,8 +342,6 @@ export default function TanksTab({ state, lang, session, onPostAction }: TanksTa
                 step="0.01"
                 value={dieselInput}
                 onChange={(e) => setDieselInput(e.target.value)}
-                onFocus={() => setIsFocused(prev => ({ ...prev, diesel: true }))}
-                onBlur={() => setIsFocused(prev => ({ ...prev, diesel: false }))}
                 className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-sm focus:outline-none focus:border-teal-500 font-mono"
                 placeholder="92.15"
               />

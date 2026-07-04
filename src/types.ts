@@ -66,6 +66,13 @@ export interface TankStockEntry {
   closingDipStock: number; // actual physically measured dip-stick stock
 }
 
+export interface UPITransaction {
+  id: string;
+  nozzleId: string;
+  amount: number;
+  timestamp: string;
+}
+
 export interface DailyShiftRecord {
   id: string; // format: YYYY-MM-DD-shiftId
   date: string; // YYYY-MM-DD
@@ -78,6 +85,7 @@ export interface DailyShiftRecord {
   closedAt?: string;
   closedBy?: string;
   notes?: string;
+  upiTransactions?: UPITransaction[];
 }
 
 export interface Customer {
@@ -134,6 +142,29 @@ export interface DailyClosingRecord {
   lastUpdatedAt?: string;
 }
 
+export interface InventoryProduct {
+  id: string;
+  name: string;
+  type: 'fuel' | 'oil' | 'other';
+  unit: string;
+  currentStock: number;
+  buyingPrice: number;
+  sellingPrice: number;
+  linkedTankId?: string; // Links fuel products to tanks
+}
+
+export interface InventoryTransaction {
+  id: string;
+  productId: string;
+  productName: string;
+  date: string; // YYYY-MM-DD
+  type: 'in' | 'out'; // in: purchase, out: sale
+  quantity: number;
+  rate: number;
+  totalAmount: number;
+  notes?: string;
+}
+
 export interface SystemState {
   shifts: Shift[];
   employees: Employee[];
@@ -143,6 +174,8 @@ export interface SystemState {
   customers?: Customer[];
   creditTransactions?: CreditTransaction[];
   dailyClosings?: DailyClosingRecord[];
+  inventory?: InventoryProduct[];
+  inventoryTransactions?: InventoryTransaction[];
   logs: Array<{
     id: string;
     timestamp: string;

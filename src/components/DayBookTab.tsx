@@ -105,7 +105,7 @@ export default function DayBookTab({
         const diffLiters = Math.max(0, entry.closingReading - entry.openingReading - (entry.testingLiters || 0));
         
         // Find Tank customRate
-        const tank = state.tanks.find(t => t.fuelType === nozObj?.fuelType);
+        const tank = state.tanks.find(t => t.id === nozObj?.tankId);
         const rate = tank ? tank.customRate : (nozObj?.fuelType === 'petrol' ? 101.45 : 92.15);
         const salesVal = diffLiters * rate;
 

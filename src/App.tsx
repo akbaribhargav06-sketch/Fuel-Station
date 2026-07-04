@@ -25,7 +25,8 @@ import {
   Info,
   Coins,
   Layers,
-  LogOut
+  LogOut,
+  Box
 } from 'lucide-react';
 
 import DashboardTab from './components/DashboardTab';
@@ -38,6 +39,8 @@ import ReportsTab from './components/ReportsTab';
 import LogsTab from './components/LogsTab';
 import UdhaarKhataTab from './components/UdhaarKhataTab';
 import DayBookTab from './components/DayBookTab';
+import InventoryTab from './components/InventoryTab';
+import FillerUdhaarTab from './components/FillerUdhaarTab';
 import LoginScreen from './components/LoginScreen';
 import { getOfflineState, processOfflineAction } from './utils/offlineDb';
 
@@ -171,10 +174,10 @@ export default function App() {
 
     // Fallback static defaults
     if (session.role === 'manager') {
-      return ['shifts', 'tanks', 'customers', 'credit', 'daybook', 'reports'].includes(perm);
+      return ['shifts', 'tanks', 'customers', 'credit', 'daybook', 'reports', 'filler_udhaar'].includes(perm);
     }
     if (session.role === 'employee') {
-      return ['shifts'].includes(perm);
+      return ['shifts', 'filler_udhaar'].includes(perm);
     }
     return false;
   };
@@ -182,6 +185,7 @@ export default function App() {
   // Sidebar responsive classes
   const menuItems = [
     { id: 'dashboard', label: t.dashboard, icon: Activity, permission: 'dashboard' },
+    { id: 'filler_udhaar', label: lang === 'en' ? 'Quick Udhar Entry' : 'ઉધાર એન્ટ્રી પૅનલ', icon: Coins, permission: 'filler_udhaar' },
     { id: 'entries', label: t.dailyEntries, icon: CalendarDays, permission: 'shifts' },
     { id: 'udhaar', label: t.udhaarKhata, icon: Coins, permission: 'credit' },
     { id: 'daybook', label: t.dayBook, icon: Layers, permission: 'daybook' },
@@ -190,6 +194,7 @@ export default function App() {
     { id: 'employeeMgmt', label: t.employeeMgmt, icon: Users, permission: 'employees' },
     { id: 'nozzleMgmt', label: t.nozzleMgmt, icon: Settings, permission: 'nozzles' },
     { id: 'tankMgmt', label: t.tankMgmt, icon: Droplet, permission: 'tanks' },
+    { id: 'inventory', label: lang === 'en' ? 'Inventory Stock' : 'ઇન્વેન્ટરી સ્ટોક', icon: Box, permission: 'tanks' },
     { id: 'logs', label: t.systemLogs, icon: Database, permission: 'employees' },
   ];
 
@@ -428,6 +433,15 @@ export default function App() {
                   onRefreshState={fetchState}
                 />
               )}
+              {activeTab === 'filler_udhaar' && (
+                <FillerUdhaarTab 
+                  state={state} 
+                  session={session} 
+                  lang={lang} 
+                  onPostAction={handlePostAction} 
+                  onRefreshState={fetchState}
+                />
+              )}
               {activeTab === 'daybook' && (
                 <DayBookTab 
                   state={state} 
@@ -472,6 +486,14 @@ export default function App() {
               )}
               {activeTab === 'tankMgmt' && (
                 <TanksTab 
+                  state={state} 
+                  lang={lang} 
+                  session={session} 
+                  onPostAction={handlePostAction} 
+                />
+              )}
+              {activeTab === 'inventory' && (
+                <InventoryTab 
                   state={state} 
                   lang={lang} 
                   session={session} 

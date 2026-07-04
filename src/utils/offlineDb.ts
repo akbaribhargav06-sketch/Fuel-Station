@@ -126,6 +126,18 @@ export const OFFLINE_DEFAULT_STATE: SystemState = {
     { id: 'tx_3', customerId: 'cust_3', date: '2026-06-03', fuelType: 'diesel', liters: 200, rate: 92.15, amount: 18430, invoiceNo: 'INV-1003', operatorId: 'emp_4', notes: 'Heavy container GJ-05-XY-5566' }
   ],
   dailyClosings: [],
+  inventory: [
+    { id: 'prod_petrol', name: 'Petrol (M-S)', type: 'fuel', unit: 'Litres', currentStock: 13500, buyingPrice: 96.50, sellingPrice: 101.45, linkedTankId: 'tank_petrol_1' },
+    { id: 'prod_diesel', name: 'Diesel (HSD)', type: 'fuel', unit: 'Litres', currentStock: 16400, buyingPrice: 88.20, sellingPrice: 92.15, linkedTankId: 'tank_diesel_1' },
+    { id: 'prod_oil_1', name: 'Engine Oil 4T (1L)', type: 'oil', unit: 'Bottles', currentStock: 45, buyingPrice: 280, sellingPrice: 350 },
+    { id: 'prod_oil_2', name: 'Gear Oil (1L)', type: 'oil', unit: 'Bottles', currentStock: 20, buyingPrice: 210, sellingPrice: 280 }
+  ],
+  inventoryTransactions: [
+    { id: 'inv_tx_1', productId: 'prod_petrol', productName: 'Petrol (M-S)', date: '2026-07-01', type: 'in', quantity: 15000, rate: 96.50, totalAmount: 1447500, notes: 'Initial Opening Stock' },
+    { id: 'inv_tx_2', productId: 'prod_diesel', productName: 'Diesel (HSD)', date: '2026-07-01', type: 'in', quantity: 18000, rate: 88.20, totalAmount: 1587600, notes: 'Initial Opening Stock' },
+    { id: 'inv_tx_3', productId: 'prod_oil_1', productName: 'Engine Oil 4T (1L)', date: '2026-07-02', type: 'in', quantity: 45, rate: 280, totalAmount: 12600, notes: 'Initial Opening Stock' },
+    { id: 'inv_tx_4', productId: 'prod_oil_2', productName: 'Gear Oil (1L)', date: '2026-07-02', type: 'in', quantity: 20, rate: 210, totalAmount: 4200, notes: 'Initial Opening Stock' }
+  ],
   logs: [
     { id: 'log_1', timestamp: new Date().toISOString(), userId: 'emp_1', userName: 'Rajesh Patel', action: 'System provisioned with offline fallback database.' }
   ]
@@ -140,6 +152,8 @@ export function getOfflineState(): SystemState {
       if (!parsed.customers) parsed.customers = OFFLINE_DEFAULT_STATE.customers;
       if (!parsed.creditTransactions) parsed.creditTransactions = OFFLINE_DEFAULT_STATE.creditTransactions;
       if (!parsed.dailyClosings) parsed.dailyClosings = OFFLINE_DEFAULT_STATE.dailyClosings;
+      if (!parsed.inventory) parsed.inventory = OFFLINE_DEFAULT_STATE.inventory;
+      if (!parsed.inventoryTransactions) parsed.inventoryTransactions = OFFLINE_DEFAULT_STATE.inventoryTransactions;
       if (!parsed.logs) parsed.logs = OFFLINE_DEFAULT_STATE.logs;
       return parsed as SystemState;
     } catch (e) {
@@ -387,6 +401,34 @@ export async function processOfflineAction(
       dbState.creditTransactions.push(newTx);
       const custName = dbState.customers?.find(c => c.id === transaction.customerId)?.name || "Unknown Customer";
       addOfflineLog(dbState, userId, userName, `Issued Udhaar Slip invoice ${newTx.invoiceNo} (Offline) to ${custName}: ₹${newTx.amount}`);
+
+      // Automatically sync to active daily shift nozzle record if nozzleId is specified
+      const activeRecord = dbState.records.find(r => r.status === 'open');
+      if (activeRecord && transaction.nozzleId) {
+        const nozId = transaction.nozzleId;
+        if (!activeRecord.nozzleEntries[nozId]) {
+          activeRecord.nozzleEntries[nozId] = {
+            nozzleId: nozId,
+            operatorId: userId || "emp-3",
+            openingReading: 0,
+            closingReading: 0,
+            cash: 0,
+            upi: 0,
+            card: 0,
+            creditSales: 0,
+            creditClient: ""
+          };
+        }
+        const nozEntry = activeRecord.nozzleEntries[nozId];
+        nozEntry.creditSales = (Number(nozEntry.creditSales) || 0) + newTx.amount;
+        
+        const custNameShort = custName.slice(0, 20);
+        const currentClients = nozEntry.creditClient ? nozEntry.creditClient.split(', ') : [];
+        if (!currentClients.includes(custNameShort)) {
+          currentClients.push(custNameShort);
+        }
+        nozEntry.creditClient = currentClients.join(', ');
+      }
     } else if (action === "delete") {
       dbState.creditTransactions = dbState.creditTransactions.filter(t => t.id !== transaction.id);
       addOfflineLog(dbState, userId, userName, `Voided/Deleted transaction invoice ID ${transaction.id} (Offline)`);
@@ -470,6 +512,60 @@ export async function processOfflineAction(
 
     const currentRecord = dbState.records[recordIndex];
 
+    if (action === "add-upi-transaction") {
+      if (!currentRecord.upiTransactions) {
+        currentRecord.upiTransactions = [];
+      }
+      const newTx = {
+        id: "upi_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+        nozzleId: payload.nozzleId,
+        amount: Number(payload.amount),
+        timestamp: new Date().toISOString()
+      };
+      currentRecord.upiTransactions.push(newTx);
+
+      // Recalculate upi field for this nozzle
+      const nozTx = currentRecord.upiTransactions.filter(t => t.nozzleId === payload.nozzleId);
+      const totalUPI = nozTx.reduce((sum, t) => sum + t.amount, 0);
+      if (currentRecord.nozzleEntries[payload.nozzleId]) {
+        currentRecord.nozzleEntries[payload.nozzleId].upi = totalUPI;
+      } else {
+        currentRecord.nozzleEntries[payload.nozzleId] = {
+          nozzleId: payload.nozzleId,
+          operatorId: userId,
+          openingReading: 0,
+          closingReading: 0,
+          cash: 0,
+          upi: totalUPI,
+          card: 0,
+          creditSales: 0,
+          creditClient: ""
+        };
+      }
+
+      const nozzleNum = dbState.nozzles.find(n => n.id === payload.nozzleId)?.nozzleNumber || payload.nozzleId;
+      addOfflineLog(dbState, userId, userName, `Added UPI payment of ₹${payload.amount} for ${nozzleNum} (Offline)`);
+      saveOfflineState(dbState);
+      return dbState;
+    }
+
+    if (action === "delete-upi-transaction") {
+      if (currentRecord.upiTransactions) {
+        currentRecord.upiTransactions = currentRecord.upiTransactions.filter(t => t.id !== payload.transactionId);
+      }
+
+      // Recalculate upi field for this nozzle
+      const nozTx = (currentRecord.upiTransactions || []).filter(t => t.nozzleId === payload.nozzleId);
+      const totalUPI = nozTx.reduce((sum, t) => sum + t.amount, 0);
+      if (currentRecord.nozzleEntries[payload.nozzleId]) {
+        currentRecord.nozzleEntries[payload.nozzleId].upi = totalUPI;
+      }
+
+      addOfflineLog(dbState, userId, userName, `Deleted UPI payment transaction for nozzle: ${payload.nozzleId} (Offline)`);
+      saveOfflineState(dbState);
+      return dbState;
+    }
+
     if (action === "update-entries") {
       currentRecord.attendance = { ...currentRecord.attendance, ...attendance };
       currentRecord.nozzleEntries = { ...currentRecord.nozzleEntries, ...nozzleEntries };
@@ -496,6 +592,27 @@ export async function processOfflineAction(
             const litresSold = Math.max(0, nozEntry.closingReading - nozEntry.openingReading - (nozEntry.testingLiters || 0));
             tank.currentStock = Math.max(0, tank.currentStock - litresSold);
             tank.lastUpdated = new Date().toISOString();
+
+            // Also sync with the linked inventory product
+            if (!dbState.inventory) dbState.inventory = [];
+            if (!dbState.inventoryTransactions) dbState.inventoryTransactions = [];
+            const prod = dbState.inventory.find(p => p.linkedTankId === tank.id);
+            if (prod) {
+              prod.currentStock = tank.currentStock;
+              if (litresSold > 0) {
+                dbState.inventoryTransactions.push({
+                  id: `inv_tx_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                  productId: prod.id,
+                  productName: prod.name,
+                  date: currentRecord.date,
+                  type: 'out',
+                  quantity: litresSold,
+                  rate: tank.customRate,
+                  totalAmount: litresSold * tank.customRate,
+                  notes: `Filler Nozzle Sale (Shift: ${dbState.shifts.find(s => s.id === currentRecord.shiftId)?.name || currentRecord.shiftId}) (Offline)`
+                });
+              }
+            }
           }
         }
       });
@@ -507,8 +624,49 @@ export async function processOfflineAction(
         if (tank) {
           if (tEntry.purchaseQty > 0) {
             tank.currentStock = Math.min(tank.capacity, tank.currentStock + tEntry.purchaseQty);
+
+            // Also update linked product stock and record purchase transaction
+            if (!dbState.inventory) dbState.inventory = [];
+            if (!dbState.inventoryTransactions) dbState.inventoryTransactions = [];
+            const prod = dbState.inventory.find(p => p.linkedTankId === tank.id);
+            if (prod) {
+              prod.currentStock = tank.currentStock;
+              dbState.inventoryTransactions.push({
+                id: `inv_tx_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                productId: prod.id,
+                productName: prod.name,
+                date: currentRecord.date,
+                type: 'in',
+                quantity: tEntry.purchaseQty,
+                rate: prod.buyingPrice,
+                totalAmount: tEntry.purchaseQty * prod.buyingPrice,
+                notes: `Tanker Purchase Arrival (Shift: ${dbState.shifts.find(s => s.id === currentRecord.shiftId)?.name || currentRecord.shiftId}) (Offline)`
+              });
+            }
           }
           if (tEntry.closingDipStock > 0) {
+            // Update linked product stock as well
+            if (!dbState.inventory) dbState.inventory = [];
+            const prod = dbState.inventory.find(p => p.linkedTankId === tank.id);
+            if (prod) {
+              const diff = tEntry.closingDipStock - tank.currentStock;
+              prod.currentStock = tEntry.closingDipStock;
+              if (diff !== 0) {
+                if (!dbState.inventoryTransactions) dbState.inventoryTransactions = [];
+                dbState.inventoryTransactions.push({
+                  id: `inv_tx_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+                  productId: prod.id,
+                  productName: prod.name,
+                  date: currentRecord.date,
+                  type: diff > 0 ? 'in' : 'out',
+                  quantity: Math.abs(diff),
+                  rate: prod.buyingPrice,
+                  totalAmount: Math.abs(diff) * prod.buyingPrice,
+                  notes: `Physical Dip Adjustment (Shift Close: ${dbState.shifts.find(s => s.id === currentRecord.shiftId)?.name || currentRecord.shiftId}) (Offline)`
+                });
+              }
+            }
+
             tank.currentStock = tEntry.closingDipStock;
           }
           tank.lastUpdated = new Date().toISOString();
@@ -520,6 +678,101 @@ export async function processOfflineAction(
     }
 
     dbState.records[recordIndex] = currentRecord;
+    return saveOfflineState(dbState);
+  }
+
+  if (url === "/api/inventory/products") {
+    const { action, product } = payload;
+    if (!dbState.inventory) dbState.inventory = [];
+    if (!dbState.inventoryTransactions) dbState.inventoryTransactions = [];
+
+    if (action === "add") {
+      const newProduct = {
+        ...product,
+        id: `prod_${Date.now()}`,
+        currentStock: Number(product.currentStock) || 0,
+        buyingPrice: Number(product.buyingPrice) || 0,
+        sellingPrice: Number(product.sellingPrice) || 0
+      };
+      dbState.inventory.push(newProduct);
+
+      if (newProduct.currentStock > 0) {
+        dbState.inventoryTransactions.push({
+          id: `inv_tx_${Date.now()}`,
+          productId: newProduct.id,
+          productName: newProduct.name,
+          date: new Date().toISOString().split('T')[0],
+          type: 'in',
+          quantity: newProduct.currentStock,
+          rate: newProduct.buyingPrice,
+          totalAmount: newProduct.currentStock * newProduct.buyingPrice,
+          notes: 'Initial Stock On-boarding'
+        });
+      }
+      addOfflineLog(dbState, userId, userName, `Added new inventory product (Offline): ${newProduct.name}`);
+    } else if (action === "edit") {
+      const idx = dbState.inventory.findIndex(p => p.id === product.id);
+      if (idx !== -1) {
+        const currentStock = product.linkedTankId 
+          ? (dbState.tanks.find(t => t.id === product.linkedTankId)?.currentStock || Number(product.currentStock) || 0)
+          : (Number(product.currentStock) || 0);
+
+        dbState.inventory[idx] = {
+          ...dbState.inventory[idx],
+          ...product,
+          currentStock,
+          buyingPrice: Number(product.buyingPrice) || 0,
+          sellingPrice: Number(product.sellingPrice) || 0
+        };
+        addOfflineLog(dbState, userId, userName, `Edited inventory product properties (Offline): ${product.name}`);
+      }
+    } else if (action === "delete") {
+      dbState.inventory = dbState.inventory.filter(p => p.id !== product.id);
+      addOfflineLog(dbState, userId, userName, `Deleted inventory product (Offline): ${product.name}`);
+    }
+    return saveOfflineState(dbState);
+  }
+
+  if (url === "/api/inventory/transactions") {
+    const { action, transaction } = payload;
+    if (!dbState.inventory) dbState.inventory = [];
+    if (!dbState.inventoryTransactions) dbState.inventoryTransactions = [];
+
+    if (action === "add") {
+      const newTx = {
+        ...transaction,
+        id: `inv_tx_${Date.now()}`,
+        quantity: Number(transaction.quantity) || 0,
+        rate: Number(transaction.rate) || 0,
+        totalAmount: (Number(transaction.quantity) || 0) * (Number(transaction.rate) || 0),
+        date: transaction.date || new Date().toISOString().split('T')[0]
+      };
+
+      const prod = dbState.inventory.find(p => p.id === newTx.productId);
+      if (prod) {
+        if (newTx.type === 'in') {
+          prod.currentStock += newTx.quantity;
+          if (prod.linkedTankId) {
+            const tank = dbState.tanks.find(t => t.id === prod.linkedTankId);
+            if (tank) {
+              tank.currentStock = Math.min(tank.capacity, tank.currentStock + newTx.quantity);
+              tank.lastUpdated = new Date().toISOString();
+            }
+          }
+        } else {
+          prod.currentStock = Math.max(0, prod.currentStock - newTx.quantity);
+          if (prod.linkedTankId) {
+            const tank = dbState.tanks.find(t => t.id === prod.linkedTankId);
+            if (tank) {
+              tank.currentStock = Math.max(0, tank.currentStock - newTx.quantity);
+              tank.lastUpdated = new Date().toISOString();
+            }
+          }
+        }
+        dbState.inventoryTransactions.push(newTx);
+        addOfflineLog(dbState, userId, userName, `Recorded inventory ${newTx.type === 'in' ? 'inflow' : 'outflow'} (Offline) for ${prod.name}: ${newTx.quantity} ${prod.unit}`);
+      }
+    }
     return saveOfflineState(dbState);
   }
 

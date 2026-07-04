@@ -27,7 +27,9 @@ import {
   Smartphone,
   ShieldCheck,
   Fuel,
-  Send
+  Send,
+  Plus,
+  Trash2
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -48,6 +50,19 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
 
   const activeRecordId = `${selectedDate}-${selectedShiftId}`;
   const currentRecord = state.records.find(r => r.id === activeRecordId);
+
+  // Filter nozzles based on logged-in employee assignments
+  const allowedNozzles = state.nozzles.filter(noz => {
+    if (!noz.active) return false;
+    if (session.role === 'employee') {
+      const loggedInEmp = state.employees.find(e => e.id === session.employeeId);
+      if (loggedInEmp?.assignedNozzles) {
+        return loggedInEmp.assignedNozzles.includes(noz.id);
+      }
+      return false; // hide if not explicitly assigned
+    }
+    return true;
+  });
 
   // Initialization states for a new record
   const [attendanceLogs, setAttendanceLogs] = useState<Record<string, 'present' | 'absent'>>({});
@@ -71,51 +86,82 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  const prevActiveIdRef = React.useRef(activeRecordId);
+
   // Sync draft states when shift or date parameters are toggled
   useEffect(() => {
     if (currentRecord) {
-      setAttendanceLogs(currentRecord.attendance);
-      setNotes(currentRecord.notes || '');
+      const isDifferentShift = prevActiveIdRef.current !== activeRecordId;
+      prevActiveIdRef.current = activeRecordId;
 
-      // Load drafts from current active record
-      const initialNozzles: typeof nozzleDrafts = {};
-      state.nozzles.forEach(noz => {
-        const ent = currentRecord.nozzleEntries[noz.id];
-        // If nozzle doesn't exist yet inside entry records, query previous shift readings or use default 1000
-        let suggestedOpening = 1000;
-        if (!ent) {
-          // Find the last actual recorded closing reading for this nozzle across all records to prevent typing manual readings
-          const pastRecordsDesc = [...state.records]
-            .filter(r => r.nozzleEntries[noz.id] !== undefined)
-            .sort((a,b) => b.id.localeCompare(a.id));
-          if (pastRecordsDesc.length > 0) {
-            suggestedOpening = pastRecordsDesc[0].nozzleEntries[noz.id].closingReading;
+      if (isDifferentShift) {
+        setAttendanceLogs(currentRecord.attendance);
+        setNotes(currentRecord.notes || '');
+
+        // Load drafts from current active record
+        const initialNozzles: typeof nozzleDrafts = {};
+        state.nozzles.forEach(noz => {
+          const ent = currentRecord.nozzleEntries[noz.id];
+          // If nozzle doesn't exist yet inside entry records, query previous shift readings or use default 1000
+          let suggestedOpening = 1000;
+          if (!ent) {
+            // Find the last actual recorded closing reading for this nozzle across all records to prevent typing manual readings
+            const pastRecordsDesc = [...state.records]
+              .filter(r => r.nozzleEntries[noz.id] !== undefined)
+              .sort((a,b) => b.id.localeCompare(a.id));
+            if (pastRecordsDesc.length > 0) {
+              suggestedOpening = pastRecordsDesc[0].nozzleEntries[noz.id].closingReading;
+            }
           }
-        }
 
-        initialNozzles[noz.id] = {
-          openingReading: ent ? String(ent.openingReading) : String(suggestedOpening),
-          closingReading: ent ? String(ent.closingReading) : String(ent ? ent.openingReading : suggestedOpening),
-          operatorId: ent ? ent.operatorId : (state.employees.find(e => e.role === 'employee' && e.active)?.id || ''),
-          cash: ent ? String(ent.cash) : '0',
-          upi: ent ? String(ent.upi) : '0',
-          card: ent ? String(ent.card) : '0',
-          creditSales: ent ? String(ent.creditSales) : '0',
-          creditClient: ent ? ent.creditClient : '',
-          testingLiters: ent ? String(ent.testingLiters || '0') : '0'
-        };
-      });
-      setNozzleDrafts(initialNozzles);
+          const txs = (currentRecord.upiTransactions || []).filter(tx => tx.nozzleId === noz.id);
+          const totalUpiAmt = txs.reduce((sum, tx) => sum + tx.amount, 0);
+          const upiValue = txs.length > 0 ? totalUpiAmt : (ent ? ent.upi : 0);
 
-      const initialTanks: typeof tankDrafts = {};
-      state.tanks.forEach(tank => {
-        const ent = currentRecord.tankEntries[tank.id];
-        initialTanks[tank.id] = {
-          purchaseQty: ent ? String(ent.purchaseQty) : '0',
-          closingDipStock: ent ? String(ent.closingDipStock) : '0'
-        };
-      });
-      setTankDrafts(initialTanks);
+          initialNozzles[noz.id] = {
+            openingReading: ent ? String(ent.openingReading) : String(suggestedOpening),
+            closingReading: ent ? String(ent.closingReading) : String(ent ? ent.openingReading : suggestedOpening),
+            operatorId: ent ? ent.operatorId : (state.employees.find(e => e.role === 'employee' && e.active)?.id || ''),
+            cash: ent ? String(ent.cash) : '0',
+            upi: String(upiValue),
+            card: ent ? String(ent.card) : '0',
+            creditSales: ent ? String(ent.creditSales) : '0',
+            creditClient: ent?.creditClient || '',
+            testingLiters: ent ? String(ent.testingLiters || '0') : '0'
+          };
+        });
+        setNozzleDrafts(initialNozzles);
+
+        const initialTanks: typeof tankDrafts = {};
+        state.tanks.forEach(tank => {
+          const ent = currentRecord.tankEntries[tank.id];
+          initialTanks[tank.id] = {
+            purchaseQty: ent ? String(ent.purchaseQty) : '0',
+            closingDipStock: ent ? String(ent.closingDipStock) : '0'
+          };
+        });
+        setTankDrafts(initialTanks);
+      } else {
+        // Same shift, but currentRecord updated (like from a UPI payment add/delete or credit slip add)
+        // ONLY update the upi value from the record to avoid overwriting typed inputs like closing reading or cash
+        setNozzleDrafts(prev => {
+          const updated = { ...prev };
+          state.nozzles.forEach(noz => {
+            const txs = (currentRecord.upiTransactions || []).filter(tx => tx.nozzleId === noz.id);
+            const totalUpiAmt = txs.reduce((sum, tx) => sum + tx.amount, 0);
+            const ent = currentRecord.nozzleEntries[noz.id];
+            const upiValue = txs.length > 0 ? totalUpiAmt : (ent ? ent.upi : 0);
+
+            if (updated[noz.id]) {
+              updated[noz.id] = {
+                ...updated[noz.id],
+                upi: String(upiValue)
+              };
+            }
+          });
+          return updated;
+        });
+      }
     } else {
       // Clear forms if record does not exist yet to initialize
       const initialAtt: typeof attendanceLogs = {};
@@ -137,23 +183,42 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
   };
 
   const handleNozzleDraftChange = (nozId: string, field: string, value: string) => {
-    setNozzleDrafts(prev => ({
-      ...prev,
-      [nozId]: {
-        ...prev[nozId],
-        [field]: value
-      }
-    }));
+    setNozzleDrafts(prev => {
+      const existing = prev[nozId] || {
+        openingReading: '1000',
+        closingReading: '1000',
+        operatorId: '',
+        cash: '0',
+        upi: '0',
+        card: '0',
+        creditSales: '0',
+        creditClient: '',
+        testingLiters: '0'
+      };
+      return {
+        ...prev,
+        [nozId]: {
+          ...existing,
+          [field]: value
+        }
+      };
+    });
   };
 
   const handleTankDraftChange = (tId: string, field: string, value: string) => {
-    setTankDrafts(prev => ({
-      ...prev,
-      [tId]: {
-        ...prev[tId],
-        [field]: value
-      }
-    }));
+    setTankDrafts(prev => {
+      const existing = prev[tId] || {
+        purchaseQty: '0',
+        closingDipStock: '0'
+      };
+      return {
+        ...prev,
+        [tId]: {
+          ...existing,
+          [field]: value
+        }
+      };
+    });
   };
 
   // 1. OPEN / INITIALIZE ACTIVE SHIFT
@@ -224,15 +289,15 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
       const draft = nozzleDrafts[nozId];
       formatted[nozId] = {
         nozzleId: nozId,
-        operatorId: draft.operatorId,
-        openingReading: parseFloat(draft.openingReading) || 0,
-        closingReading: parseFloat(draft.closingReading) || 0,
-        testingLiters: parseFloat(draft.testingLiters) || 0,
-        cash: parseFloat(draft.cash) || 0,
-        upi: parseFloat(draft.upi) || 0,
-        card: parseFloat(draft.card) || 0,
-        creditSales: parseFloat(draft.creditSales) || 0,
-        creditClient: draft.creditClient.trim()
+        operatorId: draft?.operatorId || '',
+        openingReading: parseFloat(draft?.openingReading) || 0,
+        closingReading: parseFloat(draft?.closingReading) || 0,
+        testingLiters: parseFloat(draft?.testingLiters) || 0,
+        cash: parseFloat(draft?.cash) || 0,
+        upi: parseFloat(draft?.upi) || 0,
+        card: parseFloat(draft?.card) || 0,
+        creditSales: parseFloat(draft?.creditSales) || 0,
+        creditClient: (draft?.creditClient || '').trim()
       };
     });
     return formatted;
@@ -245,8 +310,8 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
       formatted[tId] = {
         tankId: tId,
         openingStock: currentRecord?.tankEntries[tId]?.openingStock || 0,
-        purchaseQty: parseFloat(draft.purchaseQty) || 0,
-        closingDipStock: parseFloat(draft.closingDipStock) || 0
+        purchaseQty: parseFloat(draft?.purchaseQty) || 0,
+        closingDipStock: parseFloat(draft?.closingDipStock) || 0
       };
     });
     return formatted;
@@ -347,6 +412,83 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
   });
   const [selectedNozzleForCredit, setSelectedNozzleForCredit] = useState('');
 
+  // UPI register states
+  const [upiNozzleId, setUpiNozzleId] = useState('');
+  const [upiCustomAmount, setUpiCustomAmount] = useState('');
+
+  // Initialize upiNozzleId if empty
+  useEffect(() => {
+    if (allowedNozzles.length > 0 && !upiNozzleId) {
+      setUpiNozzleId(allowedNozzles[0].id);
+    }
+  }, [allowedNozzles, upiNozzleId]);
+
+  const handleAddUpiPayment = async (amountVal: number, nozzleId: string) => {
+    if (!nozzleId) {
+      setErrorMsg(lang === 'en' ? 'Please select a nozzle.' : 'કૃપા કરીને નોઝલ પસંદ કરો.');
+      return;
+    }
+    if (isNaN(amountVal) || amountVal <= 0) {
+      setErrorMsg(lang === 'en' ? 'Please enter a valid amount.' : 'કૃપા કરીને યોગ્ય રકમ દાખલ કરો.');
+      return;
+    }
+
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    const payload = {
+      action: 'add-upi-transaction',
+      recordId: activeRecordId,
+      nozzleId,
+      amount: amountVal,
+      userId: session.employeeId,
+      userName: session.name
+    };
+
+    try {
+      await onPostAction('add upi payment', '/api/records', payload);
+      setSuccessMsg(
+        lang === 'en' 
+          ? `UPI Payment of ₹${amountVal} registered successfully!` 
+          : `₹${amountVal} ઓનલાઇન પેમેન્ટ સફળતાપૂર્વક રજીસ્ટર થઈ ગયું છે!`
+      );
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to add UPI payment.');
+    }
+  };
+
+  const handleDeleteUpiPayment = async (transactionId: string, nozzleId: string) => {
+    const confirmDelete = window.confirm(
+      lang === 'en' 
+        ? 'Are you sure you want to delete this UPI payment?' 
+        : 'શું તમે આ ઓનલાઇન પેમેન્ટ એન્ટ્રી કાઢી નાખવા માંગો છો?'
+    );
+    if (!confirmDelete) return;
+
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    const payload = {
+      action: 'delete-upi-transaction',
+      recordId: activeRecordId,
+      transactionId,
+      nozzleId,
+      userId: session.employeeId,
+      userName: session.name
+    };
+
+    try {
+      await onPostAction('delete upi payment', '/api/records', payload);
+      setSuccessMsg(
+        lang === 'en' 
+          ? 'UPI Payment deleted successfully.' 
+          : 'ઓનલાઇન પેમેન્ટ એન્ટ્રી સફળતાપૂર્વક કાઢી નાખવામાં આવી છે.'
+      );
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to delete UPI payment.');
+    }
+  };
+
   // Auto-redirect filler boy to open operational shift
   useEffect(() => {
     if (session.role === 'employee') {
@@ -417,7 +559,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
         upi: existingEntry ? String(existingEntry.upi) : '0',
         card: existingEntry ? String(existingEntry.card) : '0',
         creditSales: existingEntry ? String(existingEntry.creditSales) : '0',
-        creditClient: existingEntry ? existingEntry.creditClient : '',
+        creditClient: existingEntry?.creditClient || '',
         startedAt: new Date().toISOString() // auto-start timer on claim
       }
     };
@@ -634,18 +776,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
     }
   };
 
-  // Filter nozzles based on logged-in employee assignments
-  const allowedNozzles = state.nozzles.filter(noz => {
-    if (!noz.active) return false;
-    if (session.role === 'employee') {
-      const loggedInEmp = state.employees.find(e => e.id === session.employeeId);
-      if (loggedInEmp?.assignedNozzles) {
-        return loggedInEmp.assignedNozzles.includes(noz.id);
-      }
-      return false; // hide if not explicitly assigned
-    }
-    return true;
-  });
+  // Allowed nozzles were moved to top of file to satisfy dependency references in hooks
 
   return (
     <div className="space-y-6" id="daily_entry_tab">
@@ -746,6 +877,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                 return (
                   <button
                     key={emp.id}
+                    type="button"
                     onClick={() => handleAttendanceToggle(emp.id)}
                     className={`p-2.5 rounded-lg border text-xs font-semibold flex justify-between items-center transition-all cursor-pointer ${
                       isSelected 
@@ -782,6 +914,168 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
           
           {/* LEFT: Nozzles and entries form */}
           <div className="xl:col-span-8 space-y-5">
+            
+            {/* 📱 UPI / Online Payment Register Box (ઓનલાઇન પેમેન્ટ રજીસ્ટર) */}
+            <div className="bg-white border border-purple-200/80 shadow-lg shadow-purple-500/5 rounded-2xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-purple-50 text-purple-600 rounded-lg border border-purple-100">
+                    <Smartphone className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-sm">
+                      {lang === 'en' ? '📱 UPI Payment Register' : '📱 ઓનલાઇન પેમેન્ટ રજીસ્ટર (GPay/UPI Box)'}
+                    </h3>
+                    <p className="text-slate-500 text-[11px]">
+                      {lang === 'en' 
+                        ? 'Quick-add digital customer transactions to auto-calculate nozzle UPI totals' 
+                        : 'ઓનલાઇન ગ્રાહક પેમેન્ટ્સ ઝડપથી ઉમેરો જે સીધા નોઝલના કુલ UPI હિસાબમાં ઉમેરાઈ જશે'}
+                    </p>
+                  </div>
+                </div>
+                {/* Real-time total for the shift */}
+                <div className="text-right">
+                  <span className="block text-slate-400 text-[10px] uppercase font-bold">Shift UPI Total</span>
+                  <span className="text-purple-600 font-mono font-extrabold text-sm sm:text-base">
+                    ₹{(currentRecord.upiTransactions || []).reduce((sum, t) => sum + t.amount, 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Input section */}
+              {currentRecord.status === 'closed' ? (
+                <div className="p-3 bg-purple-50/50 rounded-xl text-center text-slate-500 text-xs border border-purple-100/50">
+                  {lang === 'en' ? 'This shift is closed. Payments are locked.' : 'આ શિફ્ટ બંધ થઈ ગઈ છે. પેમેન્ટ લોક છે.'}
+                </div>
+              ) : (
+                <div className="space-y-3 bg-slate-50/50 border border-slate-100 p-4 rounded-xl">
+                  {/* Step 1: Nozzle Selector Buttons */}
+                  <div>
+                    <span className="block text-slate-600 text-[11px] font-semibold mb-2">
+                      {lang === 'en' ? '1. Select Nozzle' : '૧. નોઝલ પસંદ કરો'}
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {allowedNozzles.map(noz => {
+                        const isSel = upiNozzleId === noz.id;
+                        const nozzleNum = noz.nozzleNumber;
+                        const tank = state.tanks.find(t => t.id === noz.tankId);
+                        const fuelLabel = tank ? (tank.fuelType === 'petrol' ? 'P' : 'D') : '';
+                        return (
+                          <button
+                            key={noz.id}
+                            type="button"
+                            onClick={() => setUpiNozzleId(noz.id)}
+                            className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                              isSel 
+                                ? 'bg-purple-50 border-purple-400 text-purple-700 shadow-sm' 
+                                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-600'
+                            }`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${tank?.fuelType === 'petrol' ? 'bg-orange-500' : 'bg-blue-500'}`} />
+                            Nozzle {nozzleNum} ({fuelLabel})
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Step 2: Quick Amount Buttons */}
+                  <div>
+                    <span className="block text-slate-600 text-[11px] font-semibold mb-2">
+                      {lang === 'en' ? '2. Choose Amount & Add Entry' : '૨. રકમ પસંદ કરો અને એન્ટ્રી ઉમેરો'}
+                    </span>
+                    <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5 mb-2.5">
+                      {[100, 200, 300, 400, 500, 600, 700, 800, 900, 1000].map(amt => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => handleAddUpiPayment(amt, upiNozzleId)}
+                          disabled={!upiNozzleId}
+                          className="py-2 px-1 bg-white hover:bg-purple-600 hover:text-white border border-slate-200 rounded-lg text-[11px] font-bold font-mono text-slate-700 transition-all cursor-pointer flex flex-col items-center justify-center disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-slate-700 shadow-sm hover:border-purple-600"
+                        >
+                          <span className="text-[9px] text-slate-400 font-sans font-normal">₹</span>
+                          {amt}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Custom Amount form */}
+                    <div className="flex items-center gap-2 max-w-sm">
+                      <div className="relative flex-1">
+                        <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-400 text-xs font-mono">₹</span>
+                        <input
+                          type="number"
+                          placeholder={lang === 'en' ? 'Custom Amount' : 'અન્ય રકમ'}
+                          value={upiCustomAmount}
+                          onChange={(e) => setUpiCustomAmount(e.target.value)}
+                          disabled={!upiNozzleId}
+                          className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs font-mono focus:outline-none focus:border-purple-500 placeholder-slate-400 shadow-sm"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleAddUpiPayment(Number(upiCustomAmount), upiNozzleId);
+                          setUpiCustomAmount('');
+                        }}
+                        disabled={!upiNozzleId || !upiCustomAmount}
+                        className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        {lang === 'en' ? 'Add' : 'ઉમેરો'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Transactions Log List */}
+              {currentRecord.upiTransactions && currentRecord.upiTransactions.length > 0 && (
+                <div className="border-t border-slate-150 pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-slate-600 text-[11px] font-semibold flex items-center gap-1.5">
+                      <Smartphone className="w-3.5 h-3.5 text-purple-600" />
+                      {lang === 'en' ? 'Recent Online Payments log' : 'આજની ઓનલાઇન એન્ટ્રી લોગ'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {currentRecord.upiTransactions.length} {lang === 'en' ? 'entries' : 'એન્ટ્રીઓ'}
+                    </span>
+                  </div>
+
+                  <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-150 bg-slate-50 divide-y divide-slate-100">
+                    {currentRecord.upiTransactions.map((tx) => {
+                      const nozInfo = state.nozzles.find(n => n.id === tx.nozzleId);
+                      const nozNum = nozInfo?.nozzleNumber || tx.nozzleId;
+                      const timeStr = new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                      return (
+                        <div key={tx.id} className="flex items-center justify-between px-3 py-2 text-xs font-mono">
+                          <div className="flex items-center gap-3">
+                            <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 border border-purple-100 rounded font-bold text-[10px]">
+                              Nozzle {nozNum}
+                            </span>
+                            <span className="text-slate-400 text-[10px]">{timeStr}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-slate-700 font-bold">₹{tx.amount}</span>
+                            {currentRecord.status === 'open' && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteUpiPayment(tx.id, tx.nozzleId)}
+                                className="text-slate-400 hover:text-red-500 transition-all p-1 hover:bg-red rounded cursor-pointer"
+                                title="Delete Entry"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="bg-slate-800/90 rounded-2xl border border-slate-700/60 p-5 space-y-4">
               <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2">
                 <Zap className="text-teal-400 w-4 h-4" />
@@ -938,14 +1232,23 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                             />
                           </div>
 
-                          <div>
-                            <label className="block text-slate-300 text-[10px] uppercase font-semibold mb-1">UPI GPay (₹)</label>
+                           <div>
+                            <label className="block text-slate-300 text-[10px] uppercase font-semibold mb-1">
+                              UPI GPay (₹)
+                              {currentRecord.upiTransactions && currentRecord.upiTransactions.filter(tx => tx.nozzleId === noz.id).length > 0 && (
+                                <span className="ml-1 text-[9px] text-purple-400 normal-case font-normal">(Auto)</span>
+                              )}
+                            </label>
                             <input
                               type="number"
-                              disabled={isLocked}
+                              disabled={isLocked || (currentRecord.upiTransactions && currentRecord.upiTransactions.filter(tx => tx.nozzleId === noz.id).length > 0)}
                               value={draft.upi}
                               onChange={(e) => handleNozzleDraftChange(noz.id, 'upi', e.target.value)}
-                              className="w-full px-2 py-1.5 bg-slate-900 border border-slate-700 rounded text-slate-200 text-xs font-mono focus:outline-none focus:border-teal-500"
+                              className={`w-full px-2 py-1.5 bg-slate-900 border rounded text-slate-200 text-xs font-mono focus:outline-none focus:border-teal-500 ${
+                                currentRecord.upiTransactions && currentRecord.upiTransactions.filter(tx => tx.nozzleId === noz.id).length > 0
+                                  ? 'border-purple-500/40 text-purple-300 font-bold bg-purple-500/5'
+                                  : 'border-slate-700'
+                              }`}
                             />
                           </div>
 
