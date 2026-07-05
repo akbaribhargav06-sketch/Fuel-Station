@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { translations, LanguageCode } from '../translations';
 import { SystemState, Employee, UserSession } from '../types';
-import { Users, UserPlus, Trash2, Edit3, MessageSquare, ShieldCheck, UserCog, Check, Fuel } from 'lucide-react';
+import { Users, UserPlus, Trash2, Edit3, MessageSquare, ShieldCheck, UserCog, Check, Fuel, Clock } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface EmployeesTabProps {
@@ -40,6 +40,7 @@ export default function EmployeesTab({ state, lang, session, onPostAction }: Emp
   const [role, setRole] = useState<'admin' | 'manager' | 'employee'>('employee');
   const [permissions, setPermissions] = useState<string[]>([]);
   const [assignedNozzles, setAssignedNozzles] = useState<string[]>([]);
+  const [assignedShifts, setAssignedShifts] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleRoleChange = (selectedRole: 'admin' | 'manager' | 'employee') => {
@@ -60,6 +61,7 @@ export default function EmployeesTab({ state, lang, session, onPostAction }: Emp
     setRole('employee');
     setPermissions(['shifts']);
     setAssignedNozzles(state.nozzles.filter(n => n.active).map(n => n.id)); // default to all active
+    setAssignedShifts(state.shifts.filter(s => s.active).map(s => s.id)); // default to all active shifts
     setErrorMsg('');
     setShowForm(true);
   };
@@ -75,6 +77,7 @@ export default function EmployeesTab({ state, lang, session, onPostAction }: Emp
         ? ['shifts', 'tanks', 'customers', 'credit', 'daybook', 'reports'] 
         : ['shifts']));
     setAssignedNozzles(emp.assignedNozzles || state.nozzles.filter(n => n.active).map(n => n.id));
+    setAssignedShifts(emp.assignedShifts || state.shifts.filter(s => s.active).map(s => s.id));
     setErrorMsg('');
     setShowForm(true);
   };
@@ -101,7 +104,8 @@ export default function EmployeesTab({ state, lang, session, onPostAction }: Emp
         mobile: mobile.trim(),
         role,
         permissions,
-        assignedNozzles
+        assignedNozzles,
+        assignedShifts
       }
     };
 
@@ -304,6 +308,45 @@ export default function EmployeesTab({ state, lang, session, onPostAction }: Emp
               </p>
             </div>
 
+            {/* Custom Shift Assignments (Which shifts does this operator have access to?) */}
+            <div className="border-t border-slate-700/40 pt-3.5 space-y-2">
+              <label className="block text-slate-300 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-teal-400">
+                <Clock className="w-4 h-4" />
+                {lang === 'en' ? 'Assigned Shifts (Access Control)' : 'આપેલ શિફ્ટ પરવાનગી (એક્સેસ કંટ્રોલ)'}
+              </label>
+              <div className="flex flex-wrap gap-2 bg-slate-900/40 p-3 rounded-xl border border-slate-700/30">
+                {state.shifts.map((sh) => {
+                  const isChecked = assignedShifts.includes(sh.id);
+                  return (
+                    <button
+                      key={sh.id}
+                      type="button"
+                      onClick={() => {
+                        if (isChecked) {
+                          setAssignedShifts(assignedShifts.filter(id => id !== sh.id));
+                        } else {
+                          setAssignedShifts([...assignedShifts, sh.id]);
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-all ${
+                        isChecked
+                          ? 'bg-teal-500/10 border-teal-500/40 text-teal-400'
+                          : 'bg-slate-900/40 border-slate-700/50 text-slate-400 hover:text-slate-300'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${isChecked ? 'bg-teal-400 animate-pulse' : 'bg-slate-600'}`}></span>
+                      <span>{sh.name} ({sh.startTime} - {sh.endTime})</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-slate-500">
+                {lang === 'en' 
+                  ? 'Only checked shifts will be visible on this employee\'s daily entry panel.' 
+                  : 'ફક્ત પસંદ કરેલી શિફ્ટ જ આ કર્મચારીની એન્ટ્રી પેનલ પર દેખાશે.'}
+              </p>
+            </div>
+
             <div className="bg-slate-900/60 p-3 rounded-lg border border-slate-700/30 text-[10.5px] text-slate-400 leading-relaxed space-y-1">
               <span className="font-bold text-slate-300 block mb-1">Authorization Security PIN:</span>
               <p>• {t.adminRole} PIN: <span className="font-mono text-teal-400 font-bold bg-slate-800 px-1.5 py-0.5 rounded">1234</span></p>
@@ -342,6 +385,7 @@ export default function EmployeesTab({ state, lang, session, onPostAction }: Emp
                 <th className="py-3 px-4">{t.role}</th>
                 <th className="py-3 px-4">Permissions (એક્સેસ)</th>
                 <th className="py-3 px-4">Assigned Nozzles (નોઝલ)</th>
+                <th className="py-3 px-4">Assigned Shifts (શિફ્ટ)</th>
                 <th className="py-3 px-4">{t.status}</th>
                 <th className="py-3 px-4 text-center">Bypass PIN</th>
                 {isAdmin && <th className="py-3 px-4 text-right">{t.actions}</th>}
@@ -391,6 +435,24 @@ export default function EmployeesTab({ state, lang, session, onPostAction }: Emp
                           return nz ? (
                             <span key={nozId} className="bg-teal-500/10 text-teal-400 text-[9px] font-bold px-1.5 py-0.5 rounded border border-teal-500/20 font-mono">
                               N{nz.nozzleNumber}
+                            </span>
+                          ) : null;
+                        })
+                      )}
+                    </div>
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <div className="flex flex-wrap gap-1 max-w-[200px]">
+                      {emp.role === 'admin' ? (
+                        <span className="text-slate-500 italic text-[10px]">{lang === 'en' ? 'All Shifts' : 'બધી શિફ્ટ'}</span>
+                      ) : !emp.assignedShifts || emp.assignedShifts.length === 0 ? (
+                        <span className="text-red-400 italic text-[10px]">{lang === 'en' ? 'None' : 'એકપણ નહીં'}</span>
+                      ) : (
+                        emp.assignedShifts.map(shId => {
+                          const sh = state.shifts.find(s => s.id === shId);
+                          return sh ? (
+                            <span key={shId} className="bg-amber-500/10 text-amber-400 text-[9px] font-bold px-1.5 py-0.5 rounded border border-amber-500/20 font-mono">
+                              {sh.name}
                             </span>
                           ) : null;
                         })

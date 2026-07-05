@@ -21,6 +21,7 @@ export interface Employee {
   active: boolean;
   permissions?: string[];
   assignedNozzles?: string[]; // IDs of nozzles this employee has access to
+  assignedShifts?: string[]; // IDs of shifts this employee has access to
 }
 
 export interface FuelTank {
@@ -163,6 +164,26 @@ export interface InventoryTransaction {
   rate: number;
   totalAmount: number;
   notes?: string;
+  operatorId?: string;
+  shiftId?: string;
+}
+
+export interface CashTallyEntry {
+  id: string;
+  date: string; // YYYY-MM-DD
+  timestamp: string; // ISO String
+  employeeId: string;
+  employeeName: string;
+  shiftId: string;
+  shiftName: string;
+  denominations: Denominations;
+  totalNotesValue: number;
+  expectedFuelCash: number;
+  expectedOilCash: number;
+  totalExpectedCash: number;
+  difference: number;
+  litersSold: number;
+  nozzleReadingsSummary?: string;
 }
 
 export interface SystemState {
@@ -176,6 +197,7 @@ export interface SystemState {
   dailyClosings?: DailyClosingRecord[];
   inventory?: InventoryProduct[];
   inventoryTransactions?: InventoryTransaction[];
+  cashTallies?: CashTallyEntry[];
   logs: Array<{
     id: string;
     timestamp: string;

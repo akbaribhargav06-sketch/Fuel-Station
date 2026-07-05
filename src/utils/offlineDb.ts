@@ -138,6 +138,7 @@ export const OFFLINE_DEFAULT_STATE: SystemState = {
     { id: 'inv_tx_3', productId: 'prod_oil_1', productName: 'Engine Oil 4T (1L)', date: '2026-07-02', type: 'in', quantity: 45, rate: 280, totalAmount: 12600, notes: 'Initial Opening Stock' },
     { id: 'inv_tx_4', productId: 'prod_oil_2', productName: 'Gear Oil (1L)', date: '2026-07-02', type: 'in', quantity: 20, rate: 210, totalAmount: 4200, notes: 'Initial Opening Stock' }
   ],
+  cashTallies: [],
   logs: [
     { id: 'log_1', timestamp: new Date().toISOString(), userId: 'emp_1', userName: 'Rajesh Patel', action: 'System provisioned with offline fallback database.' }
   ]
@@ -154,6 +155,7 @@ export function getOfflineState(): SystemState {
       if (!parsed.dailyClosings) parsed.dailyClosings = OFFLINE_DEFAULT_STATE.dailyClosings;
       if (!parsed.inventory) parsed.inventory = OFFLINE_DEFAULT_STATE.inventory;
       if (!parsed.inventoryTransactions) parsed.inventoryTransactions = OFFLINE_DEFAULT_STATE.inventoryTransactions;
+      if (!parsed.cashTallies) parsed.cashTallies = [];
       if (!parsed.logs) parsed.logs = OFFLINE_DEFAULT_STATE.logs;
       return parsed as SystemState;
     } catch (e) {
@@ -772,6 +774,23 @@ export async function processOfflineAction(
         dbState.inventoryTransactions.push(newTx);
         addOfflineLog(dbState, userId, userName, `Recorded inventory ${newTx.type === 'in' ? 'inflow' : 'outflow'} (Offline) for ${prod.name}: ${newTx.quantity} ${prod.unit}`);
       }
+    }
+    return saveOfflineState(dbState);
+  }
+
+  if (url === "/api/cash-tallies") {
+    const { action, tally } = payload;
+    if (!dbState.cashTallies) dbState.cashTallies = [];
+    if (action === "add") {
+      const newTally = {
+        ...tally,
+        id: `tally_${Date.now()}`
+      };
+      dbState.cashTallies.unshift(newTally);
+      addOfflineLog(dbState, userId, userName, `Submitted physical cash tally of ₹${tally.totalNotesValue} (Offline)`);
+    } else if (action === "delete") {
+      dbState.cashTallies = dbState.cashTallies.filter(t => t.id !== tally.id);
+      addOfflineLog(dbState, userId, userName, `Deleted physical cash tally ID: ${tally.id} (Offline)`);
     }
     return saveOfflineState(dbState);
   }

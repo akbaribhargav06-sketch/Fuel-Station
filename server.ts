@@ -155,7 +155,8 @@ const DEFAULT_STATE: SystemState = {
   ],
   logs: [
     { id: 'log_1', timestamp: new Date().toISOString(), userId: 'emp_1', userName: 'Rajesh Patel', action: 'System provisioned with default data logs.' }
-  ]
+  ],
+  cashTallies: []
 };
 
 // Database utility functions
@@ -190,6 +191,9 @@ function readDB(): SystemState {
     if (!data.inventoryTransactions) {
       data.inventoryTransactions = DEFAULT_STATE.inventoryTransactions;
     }
+    if (!data.cashTallies) {
+      data.cashTallies = [];
+    }
     return data;
   } catch (error) {
     console.error("Error reading database:", error);
@@ -219,6 +223,42 @@ function addSystemLog(state: SystemState, userId: string, userName: string, acti
   if (state.logs.length > 500) {
     state.logs = state.logs.slice(0, 500);
   }
+}
+
+function getPreviousClosingReading(state: SystemState, nozzleId: string, targetDate: string, targetShiftId: string): number {
+  const targetShift = state.shifts.find(s => s.id === targetShiftId);
+  const targetStartTime = targetShift?.startTime || '00:00';
+
+  const recordsWithNozzle = state.records.filter(r => r.nozzleEntries[nozzleId] !== undefined);
+
+  const priorRecords = recordsWithNozzle.filter(r => {
+    if (r.date < targetDate) {
+      return true;
+    }
+    if (r.date === targetDate) {
+      const rShift = state.shifts.find(s => s.id === r.shiftId);
+      const rStartTime = rShift?.startTime || '00:00';
+      return rStartTime < targetStartTime;
+    }
+    return false;
+  });
+
+  priorRecords.sort((a, b) => {
+    const aShift = state.shifts.find(s => s.id === a.shiftId);
+    const aStartTime = aShift?.startTime || '00:00';
+    const bShift = state.shifts.find(s => s.id === b.shiftId);
+    const bStartTime = bShift?.startTime || '00:00';
+
+    const aKey = `${a.date}T${aStartTime}`;
+    const bKey = `${b.date}T${bStartTime}`;
+    return bKey.localeCompare(aKey);
+  });
+
+  if (priorRecords.length > 0) {
+    return priorRecords[0].nozzleEntries[nozzleId].closingReading;
+  }
+
+  return 1000;
 }
 
 async function startServer() {
@@ -486,11 +526,12 @@ async function startServer() {
       if (activeRecord && transaction.nozzleId) {
         const nozId = transaction.nozzleId;
         if (!activeRecord.nozzleEntries[nozId]) {
+          const suggestedOpening = getPreviousClosingReading(dbData, nozId, activeRecord.date, activeRecord.shiftId);
           activeRecord.nozzleEntries[nozId] = {
             nozzleId: nozId,
             operatorId: userId || "emp-3",
-            openingReading: 0,
-            closingReading: 0,
+            openingReading: suggestedOpening,
+            closingReading: suggestedOpening,
             cash: 0,
             upi: 0,
             card: 0,
@@ -667,6 +708,29 @@ async function startServer() {
     res.json(dbData);
   });
 
+  // Manage Cash Tallies (Physical Cash Denomination logs)
+  app.post("/api/cash-tallies", (req, res) => {
+    const { action, tally, userId, userName } = req.body;
+    const dbData = readDB();
+
+    if (!dbData.cashTallies) dbData.cashTallies = [];
+
+    if (action === "add") {
+      const newTally = {
+        ...tally,
+        id: `tally_${Date.now()}`
+      };
+      dbData.cashTallies.unshift(newTally);
+      addSystemLog(dbData, userId || "unknown_operator", userName || "Operator", `Submitted physical cash tally of ₹${tally.totalNotesValue}`);
+    } else if (action === "delete") {
+      dbData.cashTallies = dbData.cashTallies.filter(t => t.id !== tally.id);
+      addSystemLog(dbData, userId || "unknown_operator", userName || "Operator", `Deleted physical cash tally ID: ${tally.id}`);
+    }
+
+    writeDB(dbData);
+    res.json(dbData);
+  });
+
   // Daily Nozzle & Tank Entries (Shift Records)
   app.post("/api/records", (req, res) => {
     const { action, recordId, date, shiftId, attendance, nozzleEntries, tankEntries, notes, userId, userName, nozzleId, amount, transactionId } = req.body;
@@ -731,11 +795,12 @@ async function startServer() {
       if (currentRecord.nozzleEntries[nozzleId]) {
         currentRecord.nozzleEntries[nozzleId].upi = totalUPI;
       } else {
+        const suggestedOpening = getPreviousClosingReading(dbData, nozzleId, currentRecord.date, currentRecord.shiftId);
         currentRecord.nozzleEntries[nozzleId] = {
           nozzleId,
           operatorId: userId,
-          openingReading: 0,
-          closingReading: 0,
+          openingReading: suggestedOpening,
+          closingReading: suggestedOpening,
           cash: 0,
           upi: totalUPI,
           card: 0,

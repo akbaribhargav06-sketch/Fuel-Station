@@ -81,9 +81,11 @@ export default function App() {
   const [offlineMode, setOfflineMode] = useState<boolean>(false);
 
   // Fetch full data state from Express server
-  const fetchState = async () => {
+  const fetchState = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       setError('');
       const res = await fetch('/api/state');
       if (!res.ok) throw new Error('Failed to retrieve system parameters.');
@@ -97,13 +99,24 @@ export default function App() {
       setState(offlineData);
       setOfflineMode(true);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     fetchState();
   }, [session]);
+
+  // Real-time updates polling across devices
+  useEffect(() => {
+    if (offlineMode) return;
+    const intervalId = setInterval(() => {
+      fetchState(true);
+    }, 5000);
+    return () => clearInterval(intervalId);
+  }, [offlineMode]);
 
   const toggleLanguage = () => {
     const nextLang = lang === 'en' ? 'gu' : 'en';
@@ -164,6 +177,7 @@ export default function App() {
   // Helper to resolve custom permissions for employees
   const hasPermission = (perm: string) => {
     if (!session) return false;
+    if (perm === 'filler_udhaar') return true; // ALWAYS allow Quick Udhaar Entry panel for everyone logged in!
     if (session.role === 'admin') return true;
 
     // Look up active employee profile to check customizable permissions

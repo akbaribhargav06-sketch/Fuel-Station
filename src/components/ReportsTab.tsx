@@ -16,7 +16,12 @@ import {
   Database,
   RefreshCw,
   Coins,
-  AlertCircle
+  AlertCircle,
+  Trash2,
+  Calendar,
+  DollarSign,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -460,6 +465,148 @@ export default function ReportsTab({ state, lang, session, onPostAction, onRefre
             </div>
           </div>
         </div>
+      </div>
+
+      {/* 🪙 SHIFT WISE PAYMENT / PHYSICAL CASH TALLY REPORT PANEL */}
+      <div className="bg-slate-800/90 rounded-2xl border border-slate-700/60 overflow-hidden shadow-sm" id="shift_wise_payment_panel">
+        <div className="p-4 bg-slate-900/40 border-b border-slate-700/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Coins className="text-amber-400 w-5 h-5" />
+            <div>
+              <span className="text-slate-100 font-bold text-xs uppercase tracking-wider block">
+                {lang === 'en' ? 'Shift Wise Payment & Physical Cash Tally Report' : 'શિફ્ટ વાઇઝ પેમેન્ટ અને ભૌતિક કેશ મેળ અહેવાલ'}
+              </span>
+              <span className="text-[10px] text-slate-400 font-sans">
+                {lang === 'en' ? 'Cross-references actual employee note-counts with expected shift system collections' : 'ઓપરેટરો દ્વારા જમા કરાવેલી નોટોની ગણતરી અને સિસ્ટમના હિસાબની સરખામણી'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {(() => {
+          const rawTallies = state.cashTallies || [];
+          
+          // Apply top filtration parameters to tallies
+          const filteredTallies = rawTallies.filter(t => {
+            if (t.date < filterStartDate || t.date > filterEndDate) return false;
+            if (filterShiftId !== 'all' && t.shiftId !== filterShiftId) return false;
+            if (filterEmployeeId !== 'all' && t.employeeId !== filterEmployeeId) return false;
+            return true;
+          });
+
+          if (filteredTallies.length === 0) {
+            return (
+              <div className="text-center py-12 text-slate-400 text-xs font-medium font-sans">
+                {lang === 'en' ? 'No shift physical cash tallies found for the selected filter criteria.' : 'પસંદ કરેલા ફિલ્ટર માપદંડ માટે કોઈ કેશ મેળ અહેવાલ મળ્યા નથી.'}
+              </div>
+            );
+          }
+
+          return (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-700/40 bg-slate-900/20 text-slate-400 font-semibold tracking-wider font-sans text-[10.5px]">
+                    <th className="py-3 px-4">Date & Time</th>
+                    <th className="py-3 px-4">Operator Name</th>
+                    <th className="py-3 px-4">Shift</th>
+                    <th className="py-3 px-4 text-right">Liters Sold</th>
+                    <th className="py-3 px-4 text-right">Expected (System)</th>
+                    <th className="py-3 px-4 text-right">Physical (Handed Over)</th>
+                    <th className="py-3 px-4 text-right">Variance (વધઘટ)</th>
+                    <th className="py-3 px-4">Denomination Breakdown</th>
+                    {isAdmin && <th className="py-3 px-4 text-center">Action</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700/35 text-slate-300 font-mono text-[11px]">
+                  {filteredTallies.map((t) => {
+                    const dateObj = new Date(t.timestamp);
+                    const formattedTime = dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+                    const formattedDate = dateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+                    return (
+                      <tr key={t.id} className="hover:bg-slate-700/10 text-xs">
+                        <td className="py-3.5 px-4 font-sans text-slate-400">
+                          <span className="block font-bold text-slate-200">{formattedDate}</span>
+                          <span className="text-[10px] text-slate-500">{formattedTime}</span>
+                        </td>
+                        <td className="py-3.5 px-4 font-sans text-slate-200 font-medium">
+                          {t.employeeName}
+                        </td>
+                        <td className="py-3.5 px-4 font-sans">
+                          <span className="bg-slate-800 text-slate-350 px-2 py-0.5 rounded text-[10px] font-semibold border border-slate-700/40">
+                            {t.shiftName}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-bold text-teal-400">
+                          {t.litersSold?.toFixed(2) || '0.00'} L
+                        </td>
+                        <td className="py-3.5 px-4 text-right text-slate-300">
+                          <span className="block font-bold">₹{t.totalExpectedCash?.toLocaleString('en-IN') || '0'}</span>
+                          <span className="text-[9px] text-slate-500 block font-sans">
+                            Fuel: ₹{t.expectedFuelCash?.toLocaleString('en-IN') || '0'} | Oil: ₹{t.expectedOilCash?.toLocaleString('en-IN') || '0'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-bold text-slate-100">
+                          ₹{t.totalNotesValue?.toLocaleString('en-IN') || '0'}
+                        </td>
+                        <td className={`py-3.5 px-4 text-right font-extrabold text-xs ${
+                          Math.abs(t.difference) < 2
+                            ? 'text-emerald-400'
+                            : t.difference > 0
+                            ? 'text-blue-400'
+                            : 'text-rose-400'
+                        }`}>
+                          {t.difference >= 0 ? '+' : ''}₹{t.difference?.toFixed(2) || '0.00'}
+                        </td>
+                        <td className="py-3.5 px-4 max-w-xs">
+                          <div className="flex flex-wrap gap-1 font-mono text-[9px] text-slate-400 bg-slate-950/40 p-1.5 rounded border border-slate-800/50">
+                            {Object.entries(t.denominations).map(([k, v]) => {
+                              if (!v) return null;
+                              const noteValue = k.replace('n', '');
+                              return (
+                                <span key={k} className="bg-slate-900 px-1 py-0.5 rounded text-slate-300 border border-slate-800">
+                                  ₹{noteValue}×{v}
+                                </span>
+                              );
+                            })}
+                            {Object.values(t.denominations).every(v => !v) && (
+                              <span className="text-slate-600 italic font-sans">No physical notes entered</span>
+                            )}
+                          </div>
+                        </td>
+                        {isAdmin && (
+                          <td className="py-3.5 px-4 text-center">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await onPostAction('delete cash tally', '/api/cash-tallies', {
+                                    action: 'delete',
+                                    tally: { id: t.id },
+                                    userId: session.employeeId,
+                                    userName: session.name
+                                  });
+                                  onRefreshState();
+                                } catch (err: any) {
+                                  // Fail silently
+                                }
+                              }}
+                              className="p-1 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded transition-colors cursor-pointer"
+                              title="Delete Tally"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Structured report data rows */}

@@ -82,22 +82,29 @@ export default function FillerUdhaarTab({
     }
   }
 
-  // Pre-select nozzle if operator has claimed some in active shift
+  // Pre-select nozzle if operator has claimed some in active shift or has profile assigned nozzles
   useEffect(() => {
-    if (activeRecord && session.employeeId) {
-      // Find nozzles assigned to the current employee in the nozzleEntries
-      const operatorNozzles = Object.keys(activeRecord.nozzleEntries).filter(nozId => {
-        return activeRecord.nozzleEntries[nozId].operatorId === session.employeeId;
-      });
-      if (operatorNozzles.length > 0 && !selectedNozzleId) {
-        setSelectedNozzleId(operatorNozzles[0]);
-      } else if (state.nozzles.length > 0 && !selectedNozzleId) {
-        setSelectedNozzleId(state.nozzles[0].id);
+    if (session.employeeId && session.role === 'employee') {
+      const loggedInEmp = state.employees.find(e => e.id === session.employeeId);
+      const profileNozIds = loggedInEmp?.assignedNozzles || [];
+      const myActiveNozIds = state.nozzles
+        .filter(n => n.active && profileNozIds.includes(n.id))
+        .map(n => n.id);
+
+      if (myActiveNozIds.length > 0 && !selectedNozzleId) {
+        setSelectedNozzleId(myActiveNozIds[0]);
+      } else if (activeRecord) {
+        const operatorNozzles = Object.keys(activeRecord.nozzleEntries).filter(nozId => {
+          return activeRecord.nozzleEntries[nozId].operatorId === session.employeeId;
+        });
+        if (operatorNozzles.length > 0 && !selectedNozzleId) {
+          setSelectedNozzleId(operatorNozzles[0]);
+        }
       }
     } else if (state.nozzles.length > 0 && !selectedNozzleId) {
       setSelectedNozzleId(state.nozzles[0].id);
     }
-  }, [activeRecord, session.employeeId, state.nozzles, selectedNozzleId]);
+  }, [activeRecord, session.employeeId, state.nozzles, state.employees, selectedNozzleId, session.role]);
 
   // Handle Liters Input -> Auto-calculate Amount
   const handleLitersChange = (val: string) => {
@@ -457,10 +464,12 @@ export default function FillerUdhaarTab({
             <span className="font-bold text-emerald-600">{lang === 'en' ? 'Total Amount:' : 'કુલ રકમ:'}</span>
             <span className="font-black text-emerald-600">₹{successTx.amount.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-slate-500 text-xs">
-            <span>{lang === 'en' ? 'Net Outstanding:' : 'કુલ બાકી ઉધાર:'}</span>
-            <span className="font-bold text-rose-500">₹{totalBal.toFixed(2)}</span>
-          </div>
+          {session.role !== 'employee' && (
+            <div className="flex justify-between text-slate-500 text-xs">
+              <span>{lang === 'en' ? 'Net Outstanding:' : 'કુલ બાકી ઉધાર:'}</span>
+              <span className="font-bold text-rose-500">₹{totalBal.toFixed(2)}</span>
+            </div>
+          )}
         </div>
 
         {/* Actions for Success */}
@@ -602,16 +611,18 @@ export default function FillerUdhaarTab({
                         </div>
                       </div>
                       
-                      <div className="text-right space-y-0.5">
-                        <div className={`text-xs font-bold ${isOverLimit ? 'text-red-500' : 'text-slate-600'}`}>
-                          ₹{balance.toLocaleString()}
-                        </div>
-                        {cust.creditLimit && (
-                          <div className="text-[10px] text-slate-400">
-                            Limit: ₹{cust.creditLimit.toLocaleString()}
+                      {session.role !== 'employee' && (
+                        <div className="text-right space-y-0.5">
+                          <div className={`text-xs font-bold ${isOverLimit ? 'text-red-500' : 'text-slate-600'}`}>
+                            ₹{balance.toLocaleString()}
                           </div>
-                        )}
-                      </div>
+                          {cust.creditLimit && (
+                            <div className="text-[10px] text-slate-400">
+                              Limit: ₹{cust.creditLimit.toLocaleString()}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </button>
                   );
                 })
@@ -632,18 +643,30 @@ export default function FillerUdhaarTab({
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 text-sm font-medium focus:outline-none focus:border-emerald-500 cursor-pointer"
               >
                 <option value="">{lang === 'en' ? '-- Choose Nozzle --' : '-- નોઝલ પસંદ કરો --'}</option>
-                {state.nozzles.filter(n => n.active).map(noz => {
-                  const tank = state.tanks.find(t => t.id === noz.tankId);
-                  const rateStr = tank ? `(₹${tank.customRate}/L)` : '';
-                  const assignedLabel = activeRecord?.nozzleEntries[noz.id]?.operatorId === session.employeeId
-                    ? `⭐ ${lang === 'en' ? 'Assigned' : 'ફાળવેલ'}`
-                    : '';
-                  return (
-                    <option key={noz.id} value={noz.id}>
-                      {noz.nozzleNumber} - {noz.fuelType.toUpperCase()} {rateStr} {assignedLabel}
-                    </option>
-                  );
-                })}
+                {state.nozzles
+                  .filter(n => n.active)
+                  .filter(noz => {
+                    if (session.role === 'employee') {
+                      const loggedInEmp = state.employees.find(e => e.id === session.employeeId);
+                      if (loggedInEmp?.assignedNozzles) {
+                        return loggedInEmp.assignedNozzles.includes(noz.id);
+                      }
+                      return activeRecord?.nozzleEntries[noz.id]?.operatorId === session.employeeId;
+                    }
+                    return true;
+                  })
+                  .map(noz => {
+                    const tank = state.tanks.find(t => t.id === noz.tankId);
+                    const rateStr = tank ? `(₹${tank.customRate}/L)` : '';
+                    const assignedLabel = activeRecord?.nozzleEntries[noz.id]?.operatorId === session.employeeId
+                      ? `⭐ ${lang === 'en' ? 'Assigned' : 'ફાળવેલ'}`
+                      : '';
+                    return (
+                      <option key={noz.id} value={noz.id}>
+                        {noz.nozzleNumber} - {noz.fuelType.toUpperCase()} {rateStr} {assignedLabel}
+                      </option>
+                    );
+                  })}
               </select>
             </div>
 
@@ -765,40 +788,42 @@ export default function FillerUdhaarTab({
                 </div>
 
                 {/* Outstanding & Limit Bar */}
-                <div className="border-t border-slate-50 pt-3 space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400 font-semibold">{lang === 'en' ? 'Current Outstanding:' : 'હાલનું બાકી ઉધાર:'}</span>
-                    <span className="font-black text-rose-500 font-mono">₹{getCustomerBalance(selectedCustomer.id).toLocaleString()}</span>
-                  </div>
-
-                  {selectedCustomer.creditLimit ? (
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-[11px] text-slate-400 font-medium">
-                        <span>{lang === 'en' ? 'Approved Limit:' : 'મંજૂર ક્રેડિટ મર્યાદા:'}</span>
-                        <span>₹{selectedCustomer.creditLimit.toLocaleString()}</span>
-                      </div>
-                      {/* Visual Progress bar */}
-                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full ${
-                            (getCustomerBalance(selectedCustomer.id) / selectedCustomer.creditLimit) >= 1
-                              ? 'bg-red-500'
-                              : (getCustomerBalance(selectedCustomer.id) / selectedCustomer.creditLimit) >= 0.8
-                              ? 'bg-amber-500'
-                              : 'bg-emerald-500'
-                          }`}
-                          style={{ 
-                            width: `${Math.min(100, (getCustomerBalance(selectedCustomer.id) / selectedCustomer.creditLimit) * 100)}%` 
-                          }}
-                        ></div>
-                      </div>
+                {session.role !== 'employee' && (
+                  <div className="border-t border-slate-50 pt-3 space-y-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400 font-semibold">{lang === 'en' ? 'Current Outstanding:' : 'હાલનું બાકી ઉધાર:'}</span>
+                      <span className="font-black text-rose-500 font-mono">₹{getCustomerBalance(selectedCustomer.id).toLocaleString()}</span>
                     </div>
-                  ) : (
-                    <span className="text-[10px] text-slate-400 font-medium italic block">
-                      * {lang === 'en' ? 'No limit set for this client' : 'આ ગ્રાહક માટે કોઈ ઉધાર મર્યાદા નથી'}
-                    </span>
-                  )}
-                </div>
+
+                    {selectedCustomer.creditLimit ? (
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-[11px] text-slate-400 font-medium">
+                          <span>{lang === 'en' ? 'Approved Limit:' : 'મંજૂર ક્રેડિટ મર્યાદા:'}</span>
+                          <span>₹{selectedCustomer.creditLimit.toLocaleString()}</span>
+                        </div>
+                        {/* Visual Progress bar */}
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full ${
+                              (getCustomerBalance(selectedCustomer.id) / selectedCustomer.creditLimit) >= 1
+                                ? 'bg-red-500'
+                                : (getCustomerBalance(selectedCustomer.id) / selectedCustomer.creditLimit) >= 0.8
+                                ? 'bg-amber-500'
+                                : 'bg-emerald-500'
+                            }`}
+                            style={{ 
+                              width: `${Math.min(100, (getCustomerBalance(selectedCustomer.id) / selectedCustomer.creditLimit) * 100)}%` 
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-medium italic block">
+                        * {lang === 'en' ? 'No limit set for this client' : 'આ ગ્રાહક માટે કોઈ ઉધાર મર્યાદા નથી'}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="py-10 text-center text-slate-400 text-sm font-medium">
