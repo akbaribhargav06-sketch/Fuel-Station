@@ -1670,7 +1670,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                           value={upiCustomAmount}
                           onChange={(e) => setUpiCustomAmount(e.target.value)}
                           disabled={!upiNozzleId}
-                          className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs font-mono focus:outline-none focus:border-purple-500 placeholder-slate-400 shadow-sm"
+                          className="w-full pl-8 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-800 text-xs font-mono focus:outline-none focus:border-purple-500 placeholder-slate-400 shadow-sm"
                         />
                       </div>
                       <button

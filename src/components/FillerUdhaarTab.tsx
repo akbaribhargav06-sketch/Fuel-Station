@@ -715,9 +715,9 @@ export default function FillerUdhaarTab({
                   value={amount}
                   onChange={(e) => handleAmountChange(e.target.value)}
                   disabled={!selectedNozzleId}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-6 pr-3 py-2.5 text-slate-800 text-base font-bold font-mono focus:outline-none focus:border-emerald-500 disabled:opacity-50"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-3 py-2.5 text-slate-800 text-base font-bold font-mono focus:outline-none focus:border-emerald-500 disabled:opacity-50"
                 />
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500 font-bold font-mono">
+                <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 font-bold font-mono">
                   ₹
                 </span>
               </div>
