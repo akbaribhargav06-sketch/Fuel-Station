@@ -279,7 +279,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
         // Fallback
       }
     }
-    return { n500: 0, n100: 0, n50: 0, n20: 0, n10: 0, n5: 0, n2: 0, n1: 0 };
+    return { n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0, n5: 0, n2: 0, n1: 0 };
   });
 
   useEffect(() => {
@@ -416,7 +416,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
           : 'રોકડ મેળ મેળવણીની એન્ટ્રી સફળતાપૂર્વક સબમિટ થઈ ગઈ છે!'
       );
       // Reset denominations
-      setEmployeeDenoms({ n500: 0, n100: 0, n50: 0, n20: 0, n10: 0, n5: 0, n2: 0, n1: 0 });
+      setEmployeeDenoms({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0, n5: 0, n2: 0, n1: 0 });
       onRefreshState();
     } catch (err: any) {
       setTallyActionError(err.message || 'Failed to submit cash tally.');
@@ -644,6 +644,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
 
     const totalNotesValue = 
       (employeeDenoms.n500 || 0) * 500 +
+      (employeeDenoms.n200 || 0) * 200 +
       (employeeDenoms.n100 || 0) * 100 +
       (employeeDenoms.n50 || 0) * 50 +
       (employeeDenoms.n20 || 0) * 20 +
@@ -654,11 +655,11 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
 
     const difference = totalNotesValue - totalExpectedCash;
 
-    if (totalNotesValue === 0) {
+    if (totalNotesValue === 0 && totalExpectedCash > 0) {
       setErrorMsg(
         lang === 'en'
-          ? 'Cannot submit shift hisab with empty physical cash (Total is zero).'
-          : 'રોકડ મેળ ખાલી સબમિટ કરી શકાતી નથી (કુલ રકમ શૂન્ય છે).'
+          ? 'Cannot submit shift hisab with empty physical cash (Total is zero) when sales are expected. Please enter physical cash notes count.'
+          : 'જ્યારે વેચાણની રકમ જમા થવાની હોય ત્યારે ખાલી રોકડ મેળ સબમિટ કરી શકાતી નથી. કૃપા કરીને નોટોની ગણતરી ભરો.'
       );
       return;
     }
@@ -738,7 +739,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
       );
 
       // Reset employee denominations
-      setEmployeeDenoms({ n500: 0, n100: 0, n50: 0, n20: 0, n10: 0, n5: 0, n2: 0, n1: 0 });
+      setEmployeeDenoms({ n500: 0, n200: 0, n100: 0, n50: 0, n20: 0, n10: 0, n5: 0, n2: 0, n1: 0 });
       if (employeeDenomsStorageKey) {
         localStorage.removeItem(employeeDenomsStorageKey);
       }
@@ -1294,18 +1295,81 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
       {/* Flow 1: Shift is NOT initialized yet (Manager/Admin can click to INITIALIZE SHIFT with attendance) */}
       {!currentRecord && (
         session.role === 'employee' ? (
-          <div className="bg-slate-800/90 rounded-2xl border border-slate-700/65 p-8 text-center max-w-2xl mx-auto space-y-4">
-            <div className="inline-flex p-4 bg-amber-500/10 rounded-full text-amber-400 border border-amber-500/20 mb-2">
-              <ShieldAlert className="w-10 h-10 animate-pulse" />
+          <div className="bg-slate-800/90 rounded-2xl border border-slate-700/65 p-8 max-w-2xl mx-auto space-y-6">
+            <div className="text-center space-y-3">
+              <div className="inline-flex p-4 bg-amber-500/10 rounded-full text-amber-400 border border-amber-500/20 mb-2">
+                <ShieldAlert className="w-10 h-10 animate-pulse" />
+              </div>
+              <h3 className="font-bold text-slate-100 text-xl tracking-tight">
+                {lang === 'en' ? 'No Active Shift Opened' : 'કોઈ સક્રિય શિફ્ટ ચાલુ નથી'}
+              </h3>
+              <p className="text-slate-400 text-sm leading-relaxed max-w-md mx-auto">
+                {lang === 'en'
+                  ? 'Your manager has not opened or initialized an active shift record for this date yet. However, you can view your assigned shift timings and nozzles below, and initialize the shift directly to start entering readings.'
+                  : 'આ તારીખે મેનેજરે હજી સુધી શિફ્ટ શરૂ કરી નથી. પરંતુ તમે નીચે તમારી ફાળવેલ શિફ્ટ અને નોઝલ જોઈ શકો છો, અને ડ્યુટી રીડીંગ એન્ટ્રી શરૂ કરવા માટે જાતે પણ શિફ્ટ શરૂ કરી શકો છો.'}
+              </p>
             </div>
-            <h3 className="font-bold text-slate-100 text-lg">
-              {lang === 'en' ? 'No Active Shift Opened' : 'કોઈ સક્રિય શિફ્ટ ચાલુ નથી'}
-            </h3>
-            <p className="text-slate-400 text-sm leading-relaxed">
-              {lang === 'en'
-                ? 'Your manager has not opened or initialized an active shift for you on this date yet. Please contact the manager to mark your attendance and initialize the shift.'
-                : 'આ તારીખે મેનેજરે હજી સુધી તમારા માટે કોઈ સક્રિય શિફ્ટ શરૂ કરી નથી. કૃપા કરીને હાજરી નોંધાવવા અને શિફ્ટ શરૂ કરવા મેનેજરનો સંપર્ક કરો.'}
-            </p>
+
+            {/* Assigned Shift and Nozzle Details */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 text-left">
+              {/* Timing Box */}
+              <div className="bg-slate-900/60 p-4 border border-slate-700/40 rounded-xl space-y-2.5">
+                <h4 className="text-slate-300 font-bold text-xs uppercase tracking-wider flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-teal-400" />
+                  {lang === 'en' ? 'Your Assigned Shifts' : 'તમારી ફાળવેલ શિફ્ટ'}
+                </h4>
+                {allowedShifts.length > 0 ? (
+                  <div className="space-y-2">
+                    {allowedShifts.map(s => (
+                      <div key={s.id} className="flex justify-between items-center bg-slate-800/80 px-3 py-2 rounded-lg border border-slate-700/30">
+                        <span className="text-xs font-semibold text-slate-200">{s.name}</span>
+                        <span className="text-[11px] font-mono text-teal-400 font-bold">{s.startTime} - {s.endTime}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-red-400 italic">
+                    {lang === 'en' ? 'No shifts explicitly assigned to you.' : 'તમને કોઈ શિફ્ટ ફાળવવામાં આવી નથી.'}
+                  </p>
+                )}
+              </div>
+
+              {/* Nozzle Box */}
+              <div className="bg-slate-900/60 p-4 border border-slate-700/40 rounded-xl space-y-2.5">
+                <h4 className="text-slate-300 font-bold text-xs uppercase tracking-wider flex items-center gap-2">
+                  <Fuel className="w-4 h-4 text-teal-400" />
+                  {lang === 'en' ? 'Your Assigned Nozzles' : 'તમારી ફાળવેલ નોઝલ'}
+                </h4>
+                {allowedNozzles.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {allowedNozzles.map(noz => (
+                      <span key={noz.id} className="px-2.5 py-1.5 rounded-lg bg-teal-500/10 border border-teal-500/25 text-teal-300 text-xs font-bold font-mono">
+                        {noz.nozzleNumber} ({noz.fuelType.toUpperCase()})
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-red-400 italic">
+                    {lang === 'en' ? 'No nozzles explicitly assigned to you.' : 'તમને કોઈ નોઝલ ફાળવવામાં આવી નથી.'}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Start Shift Action */}
+            {allowedShifts.length > 0 && (
+              <div className="pt-2 text-center">
+                <button
+                  onClick={handleOpenShift}
+                  className="px-6 py-3 bg-teal-500 hover:bg-teal-400 text-slate-900 text-sm font-bold rounded-xl shadow-lg transition-all transform hover:-translate-y-0.5 active:scale-95 cursor-pointer flex items-center gap-2 mx-auto"
+                >
+                  <Play className="w-4 h-4 fill-slate-900" />
+                  {lang === 'en' 
+                    ? `Start ${state.shifts.find(s => s.id === selectedShiftId)?.name || 'Shift'} & Open Form` 
+                    : `${state.shifts.find(s => s.id === selectedShiftId)?.name || 'શિફ્ટ'} શરૂ કરો અને ફોર્મ ખોલો`}
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="bg-slate-800/90 rounded-2xl border border-slate-700/65 p-6 space-y-6 text-center max-w-2xl mx-auto">
@@ -1569,7 +1633,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                             }`}
                           >
                             <span className={`w-1.5 h-1.5 rounded-full ${tank?.fuelType === 'petrol' ? 'bg-orange-500' : 'bg-blue-500'}`} />
-                            Nozzle {nozzleNum} ({fuelLabel})
+                            {nozzleNum.toLowerCase().startsWith('nozzle') ? nozzleNum : `Nozzle ${nozzleNum}`} ({fuelLabel})
                           </button>
                         );
                       })}
@@ -1648,7 +1712,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                         <div key={tx.id} className="flex items-center justify-between px-3 py-2 text-xs font-mono">
                           <div className="flex items-center gap-3">
                             <span className="px-1.5 py-0.5 bg-purple-50 text-purple-600 border border-purple-100 rounded font-bold text-[10px]">
-                              Nozzle {nozNum}
+                              {nozNum.toLowerCase().startsWith('nozzle') ? nozNum : `Nozzle ${nozNum}`}
                             </span>
                             <span className="text-slate-400 text-[10px]">{timeStr}</span>
                           </div>
@@ -1862,14 +1926,14 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
 
                               <div>
                                 <span className="block text-slate-400 text-[10px] uppercase font-semibold mb-1">{t.litresSold}</span>
-                                <span className="block px-2.5 py-1.5 bg-slate-900/40 border border-slate-755 text-emerald-400 text-xs font-mono font-bold rounded">
+                                <span className="block px-2.5 py-1.5 bg-slate-900/40 border border-slate-700/60 text-emerald-400 text-xs font-mono font-bold rounded">
                                   {litresSold.toFixed(2)} L
                                 </span>
                               </div>
 
                               <div>
                                 <span className="block text-slate-400 text-[10px] uppercase font-semibold mb-1">Fuel Value</span>
-                                <span className="block px-2.5 py-1.5 bg-slate-900/40 border border-slate-755 text-slate-100 text-xs font-mono font-bold rounded">
+                                <span className="block px-2.5 py-1.5 bg-slate-900/40 border border-slate-700/60 text-slate-100 text-xs font-mono font-bold rounded">
                                   ₹{totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                                 </span>
                               </div>
@@ -1941,7 +2005,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                                 <span className="text-slate-500"> vs Expected Value: ₹{totalRevenue.toLocaleString()}</span>
                               </div>
                               <div className="flex items-center gap-1">
-                                <span className="text-slate-450 font-sans">{t.reconciliationDiff}:</span>
+                                <span className="text-slate-400 font-sans">{t.reconciliationDiff}:</span>
                                 <span className={`px-2 py-0.5 rounded font-bold ${
                                   reconDiff > 5 
                                     ? 'bg-green-400/10 text-green-400' 
@@ -1954,16 +2018,21 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                               </div>
                             </div>
 
-                            {/* Filler Boy Submit Button / Submission Status bar */}
+                            {/* Filler Boy Save Draft Button */}
                             {session.role === 'employee' && (
-                              <div className="flex justify-end pt-1">
+                              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center pt-2 gap-2 border-t border-slate-800/60 mt-2">
+                                <span className="text-[10px] text-slate-400 italic">
+                                  {lang === 'en' 
+                                    ? '*Submit ALL nozzles and Cash Tally together using the main button at the bottom.' 
+                                    : '*બધા નોઝલ અને રોકડ મેળ છેલ્લે નીચે આપેલ મુખ્ય બટનથી એકસાથે સબમિટ કરો.'}
+                                </span>
                                 <button
                                   type="button"
-                                  onClick={() => handleEmployeeSubmitToManager(noz.id)}
-                                  className="px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md hover:shadow-teal-500/10 transition-all duration-150 cursor-pointer active:scale-95"
+                                  onClick={handleSaveDraft}
+                                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-teal-400 border border-slate-700/80 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md transition-all duration-150 cursor-pointer active:scale-95 self-end sm:self-auto"
                                 >
-                                  <Send className="w-3.5 h-3.5" />
-                                  {lang === 'en' ? 'Submit to Manager' : 'મેનેજરને મોકલો'}
+                                  <Save className="w-3.5 h-3.5" />
+                                  {lang === 'en' ? 'Save Draft' : 'ડ્રાફ્ટ સાચવો'}
                                 </button>
                               </div>
                             )}
@@ -1993,6 +2062,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
 
               const employeeNoteSum = 
                 (employeeDenoms.n500 || 0) * 500 +
+                (employeeDenoms.n200 || 0) * 200 +
                 (employeeDenoms.n100 || 0) * 100 +
                 (employeeDenoms.n50 || 0) * 50 +
                 (employeeDenoms.n20 || 0) * 20 +
@@ -2147,9 +2217,10 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                     </div>
 
                     {/* Denominations input matrix */}
-                    <div className="space-y-1.5 bg-slate-900/40 p-3 rounded-xl border border-slate-755/60 max-h-60 overflow-y-auto">
+                    <div className="space-y-1.5 bg-slate-900/40 p-3 rounded-xl border border-slate-700/60 max-h-60 overflow-y-auto">
                       {[
                         { val: 500, key: 'n500' as const },
+                        { val: 200, key: 'n200' as const },
                         { val: 100, key: 'n100' as const },
                         { val: 50, key: 'n50' as const },
                         { val: 20, key: 'n20' as const },
@@ -2232,6 +2303,20 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                             <span>{lang === 'en' ? `Shortage of -₹${Math.abs(employeeCashDiff).toFixed(2)} detected!` : `હિસાબમાં -₹${Math.abs(employeeCashDiff).toFixed(2)} ની ઘટ્ટ (ટૂંકો મેળ) જણાય છે!`}</span>
                           </div>
                         )}
+                      </div>
+
+                      {/* Remarks / Incident Notes input for filler boy */}
+                      <div className="space-y-1 mt-1">
+                        <label className="block text-slate-400 text-[10px] uppercase font-bold tracking-wider">
+                          {lang === 'en' ? 'Shift Notes / Remarks (Optional)' : 'શિફ્ટ નોંધો / રિમાર્કસ (વૈકલ્પિક)'}
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          placeholder={lang === 'en' ? "Enter any shift incident, short payment notes, nozzle issues, etc..." : "કોઈ ચોક્કસ નોંધ, ટૂંકી રકમ, નોઝલની સમસ્યા વગેરે લખો..."}
+                          className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700/80 rounded-lg text-slate-200 text-xs font-sans focus:outline-none focus:border-teal-500"
+                        />
                       </div>
 
                       {/* Action Feedback Messages */}
@@ -2439,7 +2524,7 @@ export default function DailyEntryTab({ state, lang, session, onPostAction, onRe
                       const isClosedMode = currentRecord.status === 'closed';
 
                       return (
-                        <div key={tank.id} className="space-y-2 p-3 bg-slate-900/50 border border-slate-755 rounded-xl">
+                        <div key={tank.id} className="space-y-2 p-3 bg-slate-900/50 border border-slate-700/60 rounded-xl">
                           <div className="flex justify-between items-center text-xs">
                             <span className="font-semibold text-slate-200">{tank.name}</span>
                             <span className="text-slate-500 font-mono">Current calculated: {tank.currentStock.toFixed(1)} L</span>

@@ -296,7 +296,7 @@ export default function EmployeesTab({ state, lang, session, onPostAction }: Emp
                       }`}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full ${isChecked ? 'bg-teal-400 animate-pulse' : 'bg-slate-600'}`}></span>
-                      <span>Nozzle {nozzle.nozzleNumber} ({nozzle.fuelType.toUpperCase()})</span>
+                      <span>{nozzle.nozzleNumber.toLowerCase().startsWith('nozzle') ? nozzle.nozzleNumber : `Nozzle ${nozzle.nozzleNumber}`} ({nozzle.fuelType.toUpperCase()})</span>
                     </button>
                   );
                 })}

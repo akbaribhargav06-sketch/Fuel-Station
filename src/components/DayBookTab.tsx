@@ -40,6 +40,7 @@ interface DayBookTabProps {
 
 const DEFAULT_DENOMINATIONS: Denominations = {
   n500: 0,
+  n200: 0,
   n100: 0,
   n50: 0,
   n20: 0,
@@ -180,6 +181,7 @@ export default function DayBookTab({
   // Immediate note sum calculation
   const noteSum = 
     (denoms.n500 * 500) +
+    (denoms.n200 * 200) +
     (denoms.n100 * 100) +
     (denoms.n50 * 50) +
     (denoms.n20 * 20) +
@@ -833,9 +835,10 @@ export default function DayBookTab({
           </p>
 
           {/* Notes Input Matrix */}
-          <div className="space-y-2 border border-slate-150 p-3 rounded-xl bg-slate-50/40">
+          <div className="space-y-2 border border-slate-150 p-3 rounded-xl bg-slate-50/40 font-sans">
             {[
               { multiplier: 500, key: 'n500' as const },
+              { multiplier: 200, key: 'n200' as const },
               { multiplier: 100, key: 'n100' as const },
               { multiplier: 50, key: 'n50' as const },
               { multiplier: 20, key: 'n20' as const },
@@ -919,7 +922,7 @@ export default function DayBookTab({
           </button>
 
           {existingClosing && (
-            <div className="p-3 bg-slate-50 rounded-xl border border-dashed flex items-center gap-2 text-[10px] text-slate-450">
+            <div className="p-3 bg-slate-50 rounded-xl border border-dashed flex items-center gap-2 text-[10px] text-slate-400">
               <Info className="w-4 h-4 text-indigo-500 shrink-0" />
               <span>
                 Last tally updated by <strong>{existingClosing.lastUpdatedBy || 'N/A'}</strong> on <strong>{existingClosing.lastUpdatedAt ? new Date(existingClosing.lastUpdatedAt).toLocaleTimeString() : 'N/A'}</strong>

@@ -28,6 +28,7 @@ import {
   LogOut,
   Box
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 import DashboardTab from './components/DashboardTab';
 import ShiftsTab from './components/ShiftsTab';
@@ -274,10 +275,10 @@ export default function App() {
           </button>
 
           <div className="flex items-center gap-2">
-            <Fuel className="w-6 h-6 text-teal-400" />
-            <h1 className="font-extrabold text-slate-100 tracking-tight text-base md:text-lg flex items-center gap-1.5 font-sans">
+            <Fuel className="w-6 h-6 text-teal-600 dark:text-teal-400" />
+            <h1 className={`font-extrabold tracking-tight text-base md:text-lg flex items-center gap-1.5 font-display ${darkMode ? 'text-slate-100' : 'text-slate-900'}`}>
               <span>{t.appTitle}</span>
-              <span className="text-[10px] bg-teal-400/10 border border-teal-500/25 px-1.5 py-0.5 rounded text-teal-400 uppercase font-mono hidden sm:inline">
+              <span className="text-[10px] bg-teal-500/10 border border-teal-500/25 px-1.5 py-0.5 rounded text-teal-700 dark:text-teal-400 uppercase font-mono hidden sm:inline">
                 ERP
               </span>
             </h1>
@@ -287,12 +288,16 @@ export default function App() {
         {/* Dynamic Operator Info and global switches */}
         <div className="flex items-center gap-2.5">
           {/* Welcome session profile */}
-          <div className="hidden md:flex items-center gap-1.5 text-right px-3 py-1 bg-slate-800/40 border border-slate-700/30 rounded-xl" id="profile_session_panel">
-            <Users className="w-4 h-4 text-slate-405" />
-            <div className="text-left">
-              <span className="text-xs text-slate-405 block leading-none">Welcome, {session.name}</span>
-              <span className={`text-[9px] uppercase font-bold tracking-wide font-mono ${
-                session.role === 'admin' ? 'text-red-400' : session.role === 'manager' ? 'text-amber-400' : 'text-teal-400'
+          <div className={`hidden md:flex items-center gap-1.5 text-right px-3 py-1.5 border rounded-xl shadow-sm ${darkMode ? 'bg-slate-800/40 border-slate-700/30' : 'bg-slate-100/50 border-slate-200'}`} id="profile_session_panel">
+            <Users className="w-4 h-4 text-slate-500" />
+            <div className="text-left font-sans">
+              <span className={`text-xs block leading-none font-medium ${darkMode ? 'text-slate-400' : 'text-slate-700'}`}>Welcome, {session.name}</span>
+              <span className={`text-[9px] uppercase font-bold tracking-wider font-mono ${
+                session.role === 'admin' 
+                  ? (darkMode ? 'text-red-400' : 'text-red-600') 
+                  : session.role === 'manager' 
+                    ? (darkMode ? 'text-amber-500' : 'text-amber-600') 
+                    : (darkMode ? 'text-teal-400' : 'text-teal-600')
               }`}>
                 {session.role}
               </span>
@@ -302,7 +307,9 @@ export default function App() {
           {/* Bilingual translations toggler button */}
           <button
             onClick={toggleLanguage}
-            className="p-1.5 sm:px-3 bg-slate-805 hover:bg-slate-705 text-teal-400 font-semibold text-xs border border-slate-705/50 rounded-xl cursor-pointer transition-colors flex items-center gap-1 shadow-sm"
+            className={`p-1.5 sm:px-3 font-semibold text-xs border rounded-xl cursor-pointer transition-colors flex items-center gap-1 shadow-sm ${
+              darkMode ? 'bg-slate-800 hover:bg-slate-700 text-teal-400 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-teal-700 border-slate-300'
+            }`}
             title="Switch language (ભાષા બદલો)"
           >
             <Globe className="w-3.5 h-3.5" />
@@ -312,7 +319,9 @@ export default function App() {
           {/* Theme toggler */}
           <button
             onClick={toggleTheme}
-            className="p-2 bg-slate-805 text-slate-300 hover:text-slate-100 border border-slate-705/50 rounded-xl cursor-pointer transition-colors shadow-sm"
+            className={`p-2 rounded-xl cursor-pointer transition-colors shadow-sm border ${
+              darkMode ? 'bg-slate-800 text-slate-300 hover:text-slate-100 border-slate-700' : 'bg-slate-100 text-slate-700 hover:text-slate-900 border-slate-300'
+            }`}
             title={darkMode ? t.lightMode : t.darkMode}
           >
             {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
@@ -339,8 +348,8 @@ export default function App() {
       <div className="flex-1 flex flex-col md:flex-row relative">
         
         {/* Horizontal Navigation Sidebar left */}
-        <aside className={`w-64 flex-shrink-0 border-r border-slate-800 md:block transition-all duration-300 absolute md:relative z-35 h-full ${
-          darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-205 shadow-sm'
+        <aside className={`w-64 flex-shrink-0 border-r md:block transition-all duration-300 absolute md:relative z-35 h-full ${
+          darkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-800 shadow-sm'
         } ${mobileSidebarOpen ? 'left-0 block' : '-left-64 md:left-0 hidden'}`}>
           <div className="flex flex-col h-full justify-between">
             <nav className="p-4 space-y-1.5 flex-1">
@@ -356,8 +365,12 @@ export default function App() {
                     }}
                     className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold tracking-wider font-sans uppercase text-left transition-all duration-150 cursor-pointer ${
                       isSelected
-                        ? 'bg-gradient-to-r from-teal-500/15 to-teal-500/5 text-teal-400 border-l-4 border-l-teal-400'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850/40'
+                        ? darkMode
+                          ? 'bg-gradient-to-r from-teal-500/15 to-teal-500/5 text-teal-400 border-l-4 border-l-teal-400'
+                          : 'bg-gradient-to-r from-teal-500/10 to-teal-500/5 text-teal-700 border-l-4 border-l-teal-600'
+                        : darkMode
+                          ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                   >
                     <Icon className="w-4 h-4 flex-shrink-0" />
@@ -420,107 +433,116 @@ export default function App() {
 
           {/* Routing tab view switchboard */}
           {state && (
-            <div className="space-y-6">
-              {activeTab === 'dashboard' && (
-                <DashboardTab 
-                  state={state} 
-                  lang={lang} 
-                  darkMode={darkMode} 
-                  session={session}
-                />
-              )}
-              {activeTab === 'entries' && (
-                <DailyEntryTab 
-                  state={state} 
-                  lang={lang} 
-                  session={session} 
-                  onPostAction={handlePostAction} 
-                  onRefreshState={fetchState}
-                />
-              )}
-              {activeTab === 'udhaar' && (
-                <UdhaarKhataTab 
-                  state={state} 
-                  lang={lang} 
-                  session={session} 
-                  onPostAction={handlePostAction} 
-                  onRefreshState={fetchState}
-                />
-              )}
-              {activeTab === 'filler_udhaar' && (
-                <FillerUdhaarTab 
-                  state={state} 
-                  session={session} 
-                  lang={lang} 
-                  onPostAction={handlePostAction} 
-                  onRefreshState={fetchState}
-                />
-              )}
-              {activeTab === 'daybook' && (
-                <DayBookTab 
-                  state={state} 
-                  lang={lang} 
-                  session={session} 
-                  onPostAction={handlePostAction} 
-                  onRefreshState={fetchState}
-                />
-              )}
-              {activeTab === 'reports' && (
-                <ReportsTab 
-                  state={state} 
-                  lang={lang} 
-                  session={session} 
-                  onPostAction={handlePostAction} 
-                  onRefreshState={fetchState}
-                />
-              )}
-              {activeTab === 'shifts' && (
-                <ShiftsTab 
-                  state={state} 
-                  lang={lang} 
-                  session={session} 
-                  onPostAction={handlePostAction} 
-                />
-              )}
-              {activeTab === 'employeeMgmt' && (
-                <EmployeesTab 
-                  state={state} 
-                  lang={lang} 
-                  session={session} 
-                  onPostAction={handlePostAction} 
-                />
-              )}
-              {activeTab === 'nozzleMgmt' && (
-                <NozzlesTab 
-                  state={state} 
-                  lang={lang} 
-                  session={session} 
-                  onPostAction={handlePostAction} 
-                />
-              )}
-              {activeTab === 'tankMgmt' && (
-                <TanksTab 
-                  state={state} 
-                  lang={lang} 
-                  session={session} 
-                  onPostAction={handlePostAction} 
-                />
-              )}
-              {activeTab === 'inventory' && (
-                <InventoryTab 
-                  state={state} 
-                  lang={lang} 
-                  session={session} 
-                  onPostAction={handlePostAction} 
-                />
-              )}
-              {activeTab === 'logs' && (
-                <LogsTab 
-                  state={state} 
-                  lang={lang} 
-                />
-              )}
-            </div>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="space-y-6"
+              >
+                {activeTab === 'dashboard' && (
+                  <DashboardTab 
+                    state={state} 
+                    lang={lang} 
+                    darkMode={darkMode} 
+                    session={session}
+                  />
+                )}
+                {activeTab === 'entries' && (
+                  <DailyEntryTab 
+                    state={state} 
+                    lang={lang} 
+                    session={session} 
+                    onPostAction={handlePostAction} 
+                    onRefreshState={fetchState}
+                  />
+                )}
+                {activeTab === 'udhaar' && (
+                  <UdhaarKhataTab 
+                    state={state} 
+                    lang={lang} 
+                    session={session} 
+                    onPostAction={handlePostAction} 
+                    onRefreshState={fetchState}
+                  />
+                )}
+                {activeTab === 'filler_udhaar' && (
+                  <FillerUdhaarTab 
+                    state={state} 
+                    session={session} 
+                    lang={lang} 
+                    onPostAction={handlePostAction} 
+                    onRefreshState={fetchState}
+                  />
+                )}
+                {activeTab === 'daybook' && (
+                  <DayBookTab 
+                    state={state} 
+                    lang={lang} 
+                    session={session} 
+                    onPostAction={handlePostAction} 
+                    onRefreshState={fetchState}
+                  />
+                )}
+                {activeTab === 'reports' && (
+                  <ReportsTab 
+                    state={state} 
+                    lang={lang} 
+                    session={session} 
+                    onPostAction={handlePostAction} 
+                    onRefreshState={fetchState}
+                  />
+                )}
+                {activeTab === 'shifts' && (
+                  <ShiftsTab 
+                    state={state} 
+                    lang={lang} 
+                    session={session} 
+                    onPostAction={handlePostAction} 
+                  />
+                )}
+                {activeTab === 'employeeMgmt' && (
+                  <EmployeesTab 
+                    state={state} 
+                    lang={lang} 
+                    session={session} 
+                    onPostAction={handlePostAction} 
+                  />
+                )}
+                {activeTab === 'nozzleMgmt' && (
+                  <NozzlesTab 
+                    state={state} 
+                    lang={lang} 
+                    session={session} 
+                    onPostAction={handlePostAction} 
+                  />
+                )}
+                {activeTab === 'tankMgmt' && (
+                  <TanksTab 
+                    state={state} 
+                    lang={lang} 
+                    session={session} 
+                    onPostAction={handlePostAction} 
+                  />
+                )}
+                {activeTab === 'inventory' && (
+                  <InventoryTab 
+                    state={state} 
+                    lang={lang} 
+                    session={session} 
+                    onPostAction={handlePostAction} 
+                  />
+                )}
+                {activeTab === 'logs' && (
+                  <LogsTab 
+                    state={state} 
+                    lang={lang} 
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
           )}
         </main>
       </div>

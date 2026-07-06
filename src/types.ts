@@ -114,6 +114,7 @@ export interface CreditTransaction {
 
 export interface Denominations {
   n500: number;
+  n200: number;
   n100: number;
   n50: number;
   n20: number;

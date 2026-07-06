@@ -41,7 +41,7 @@ export default function LogsTab({ state, lang }: LogsTabProps) {
             <tbody className="divide-y divide-slate-700/40 text-slate-300 font-sans">
               {state.logs.map((log) => (
                 <tr key={log.id} className="hover:bg-slate-700/20 text-xs text-slate-300">
-                  <td className="py-3 px-4 font-mono text-slate-405">
+                  <td className="py-3 px-4 font-mono text-slate-400">
                     {new Date(log.timestamp).toLocaleString(undefined, { 
                       year: 'numeric', 
                       month: 'short', 
@@ -63,7 +63,7 @@ export default function LogsTab({ state, lang }: LogsTabProps) {
 
               {state.logs.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="text-center py-12 text-slate-405 text-sm">
+                  <td colSpan={3} className="text-center py-12 text-slate-400 text-sm">
                     {t.noData}
                   </td>
                 </tr>

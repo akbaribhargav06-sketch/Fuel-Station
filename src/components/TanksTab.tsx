@@ -333,8 +333,8 @@ export default function TanksTab({ state, lang, session, onPostAction }: TanksTa
             </div>
 
             <div>
-              <label className="block text-slate-355 text-xs font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-yellow-450 inline-block"></span>
+              <label className="block text-slate-300 text-xs font-semibold uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span>
                 {lang === 'en' ? 'Diesel Rate (₹/L)' : 'ડીઝલ નો ભાવ (₹/લીટર)'}
               </label>
               <input

@@ -15,91 +15,7 @@ const DB_FILE = path.join(process.cwd(), "database.json");
 
 // Helper to construct mock history for deep dashboard experience
 function generateMockHistory(): DailyShiftRecord[] {
-  const records: DailyShiftRecord[] = [];
-  const days = 3; // past 3 days
-  const today = new Date();
-  
-  for (let i = days; i >= 1; i--) {
-    const date = new Date();
-    date.setDate(today.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
-    
-    // Day Shift 1, 2, 3
-    for (let s = 1; s <= 3; s++) {
-      const shiftId = `shift_${s}`;
-      const recId = `${dateStr}-${shiftId}`;
-      
-      const record: DailyShiftRecord = {
-        id: recId,
-        date: dateStr,
-        shiftId: shiftId,
-        status: 'closed',
-        openedAt: `${dateStr}T${s === 1 ? '06:00' : s === 2 ? '14:00' : '22:00'}:00.000Z`,
-        closedAt: `${dateStr}T${s === 1 ? '14:00' : s === 2 ? '22:00' : '06:00'}:00.000Z`,
-        closedBy: 'Rajesh Patel',
-        notes: `System generated historic auto-close for ${dateStr} Shift ${s}`,
-        attendance: {
-          'emp_1': 'present',
-          'emp_2': 'present',
-          'emp_3': s === 1 ? 'present' : 'absent',
-          'emp_4': s === 2 ? 'present' : 'absent',
-        },
-        nozzleEntries: {
-          'nozzle_1': {
-            nozzleId: 'nozzle_1',
-            operatorId: 'emp_3',
-            openingReading: 12000 + (days - i) * 800 + (s - 1) * 200,
-            closingReading: 12000 + (days - i) * 800 + (s - 1) * 200 + 180,
-            cash: 10000,
-            upi: 5000,
-            card: 2000,
-            creditSales: 1261,
-            creditClient: 'GSRTC Bus Depot'
-          },
-          'nozzle_2': {
-            nozzleId: 'nozzle_2',
-            operatorId: 'emp_3',
-            openingReading: 8000 + (days - i) * 600 + (s - 1) * 150,
-            closingReading: 8000 + (days - i) * 600 + (s - 1) * 150 + 130,
-            cash: 8000,
-            upi: 3000,
-            card: 1000,
-            creditSales: 1188,
-            creditClient: 'Amul Milk Van'
-          },
-          'nozzle_5': {
-            nozzleId: 'nozzle_5',
-            operatorId: 'emp_4',
-            openingReading: 24000 + (days - i) * 1200 + (s - 1) * 300,
-            closingReading: 24000 + (days - i) * 1200 + (s - 1) * 300 + 400,
-            cash: 20000,
-            upi: 10000,
-            card: 5000,
-            creditSales: 1860,
-            creditClient: 'Sardar Transport'
-          }
-        },
-        tankEntries: {
-          'tank_petrol_1': {
-            tankId: 'tank_petrol_1',
-            openingStock: 16000 - (days - i) * 1500,
-            purchaseQty: i === 2 && s === 1 ? 5000 : 0, // tank fill on day -2, shift 1
-            closingDipStock: 16000 - (days - i) * 1500 + (i === 2 && s === 1 ? 5000 : 0) - 310
-          },
-          'tank_diesel_1': {
-            tankId: 'tank_diesel_1',
-            openingStock: 22000 - (days - i) * 2500,
-            purchaseQty: 0,
-            closingDipStock: 22000 - (days - i) * 2500 - 400
-          }
-        }
-      };
-      
-      records.push(record);
-    }
-  }
-  
-  return records;
+  return [];
 }
 
 // Initial default state if DB file doesn't exist
@@ -135,11 +51,7 @@ const DEFAULT_STATE: SystemState = {
     { id: 'cust_2', name: 'Amul Milk Van', mobile: '9925298765', vehicleNo: 'GJ-03-AA-9988', creditLimit: 80000, active: true },
     { id: 'cust_3', name: 'Sardar Transport', mobile: '9824012345', vehicleNo: 'GJ-05-XY-5566', creditLimit: 200000, active: true }
   ],
-  creditTransactions: [
-    { id: 'tx_1', customerId: 'cust_1', date: '2026-06-01', fuelType: 'diesel', liters: 100, rate: 92.15, amount: 9215, invoiceNo: 'INV-1001', operatorId: 'emp_3', notes: 'Regular bulk fill', whatsappSent: true },
-    { id: 'tx_2', customerId: 'cust_2', date: '2026-06-02', fuelType: 'petrol', liters: 25, rate: 101.45, amount: 2536.25, invoiceNo: 'INV-1002', operatorId: 'emp_3', notes: 'Daily run delivery van' },
-    { id: 'tx_3', customerId: 'cust_3', date: '2026-06-03', fuelType: 'diesel', liters: 200, rate: 92.15, amount: 18430, invoiceNo: 'INV-1003', operatorId: 'emp_4', notes: 'Heavy container GJ-05-XY-5566' }
-  ],
+  creditTransactions: [],
   dailyClosings: [],
   inventory: [
     { id: 'prod_petrol', name: 'Petrol (M-S)', type: 'fuel', unit: 'Litres', currentStock: 13500, buyingPrice: 96.50, sellingPrice: 101.45, linkedTankId: 'tank_petrol_1' },
@@ -147,14 +59,9 @@ const DEFAULT_STATE: SystemState = {
     { id: 'prod_oil_1', name: 'Engine Oil 4T (1L)', type: 'oil', unit: 'Bottles', currentStock: 45, buyingPrice: 280, sellingPrice: 350 },
     { id: 'prod_oil_2', name: 'Gear Oil (1L)', type: 'oil', unit: 'Bottles', currentStock: 20, buyingPrice: 210, sellingPrice: 280 }
   ],
-  inventoryTransactions: [
-    { id: 'inv_tx_1', productId: 'prod_petrol', productName: 'Petrol (M-S)', date: '2026-07-01', type: 'in', quantity: 15000, rate: 96.50, totalAmount: 1447500, notes: 'Initial Opening Stock' },
-    { id: 'inv_tx_2', productId: 'prod_diesel', productName: 'Diesel (HSD)', date: '2026-07-01', type: 'in', quantity: 18000, rate: 88.20, totalAmount: 1587600, notes: 'Initial Opening Stock' },
-    { id: 'inv_tx_3', productId: 'prod_oil_1', productName: 'Engine Oil 4T (1L)', date: '2026-07-02', type: 'in', quantity: 45, rate: 280, totalAmount: 12600, notes: 'Initial Opening Stock' },
-    { id: 'inv_tx_4', productId: 'prod_oil_2', productName: 'Gear Oil (1L)', date: '2026-07-02', type: 'in', quantity: 20, rate: 210, totalAmount: 4200, notes: 'Initial Opening Stock' }
-  ],
+  inventoryTransactions: [],
   logs: [
-    { id: 'log_1', timestamp: new Date().toISOString(), userId: 'emp_1', userName: 'Rajesh Patel', action: 'System provisioned with default data logs.' }
+    { id: 'log_1', timestamp: new Date().toISOString(), userId: 'emp_1', userName: 'Rajesh Patel', action: 'System provisioned with default setup.' }
   ],
   cashTallies: []
 };
@@ -176,11 +83,7 @@ function readDB(): SystemState {
       ];
     }
     if (!data.creditTransactions) {
-      data.creditTransactions = [
-        { id: 'tx_1', customerId: 'cust_1', date: '2026-06-01', fuelType: 'diesel', liters: 100, rate: 92.15, amount: 9215, invoiceNo: 'INV-1001', operatorId: 'emp_3', notes: 'Regular bulk fill', whatsappSent: true },
-        { id: 'tx_2', customerId: 'cust_2', date: '2026-06-02', fuelType: 'petrol', liters: 25, rate: 101.45, amount: 2536.25, invoiceNo: 'INV-1002', operatorId: 'emp_3', notes: 'Daily run delivery van' },
-        { id: 'tx_3', customerId: 'cust_3', date: '2026-06-03', fuelType: 'diesel', liters: 200, rate: 92.15, amount: 18430, invoiceNo: 'INV-1003', operatorId: 'emp_4', notes: 'Heavy container GJ-05-XY-5566' }
-      ];
+      data.creditTransactions = [];
     }
     if (!data.dailyClosings) {
       data.dailyClosings = [];
@@ -189,7 +92,7 @@ function readDB(): SystemState {
       data.inventory = DEFAULT_STATE.inventory;
     }
     if (!data.inventoryTransactions) {
-      data.inventoryTransactions = DEFAULT_STATE.inventoryTransactions;
+      data.inventoryTransactions = [];
     }
     if (!data.cashTallies) {
       data.cashTallies = [];

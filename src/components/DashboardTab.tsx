@@ -77,7 +77,7 @@ export default function DashboardTab({ state, lang, darkMode, session }: Dashboa
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="space-y-1">
-              <span className="text-teal-405 text-xs font-bold uppercase tracking-widest font-mono block">
+              <span className="text-teal-400 text-xs font-bold uppercase tracking-widest font-mono block">
                 {lang === 'en' ? 'PUMP OPERATOR PORTAL' : 'પંપ ઓપરેટર કંટ્રોલ પેનલ'}
               </span>
               <h2 className="text-xl md:text-2xl font-bold text-slate-100 tracking-tight">
@@ -118,7 +118,7 @@ export default function DashboardTab({ state, lang, darkMode, session }: Dashboa
                   <Fuel className="w-6 h-6" />
                 </div>
                 <div>
-                  <span className="text-slate-450 text-[10px] font-bold uppercase tracking-wider block">
+                  <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block">
                     {lang === 'en' ? `${tank.name} Rate` : `${tank.name} નો ભાવ`}
                   </span>
                   <span className="text-xl font-black font-mono tracking-tight text-slate-100 block mt-0.5">
@@ -127,7 +127,7 @@ export default function DashboardTab({ state, lang, darkMode, session }: Dashboa
                 </div>
               </div>
               <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                tank.fuelType === 'petrol' ? 'bg-blue-500/10 text-blue-450' : 'bg-yellow-500/10 text-yellow-450'
+                tank.fuelType === 'petrol' ? 'bg-blue-500/10 text-blue-400' : 'bg-yellow-500/10 text-amber-500'
               }`}>
                 {tank.fuelType === 'petrol' ? t.petrol : t.diesel}
               </span>

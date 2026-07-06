@@ -22,7 +22,7 @@ export function generateMockHistory(): DailyShiftRecord[] {
         status: 'closed',
         openedAt: `${dateStr}T${s === 1 ? '06:00' : s === 2 ? '14:00' : '22:00'}:00.000Z`,
         closedAt: `${dateStr}T${s === 1 ? '14:00' : s === 2 ? '22:00' : '06:00'}:00.000Z`,
-        closedBy: 'Rajesh Patel',
+        closedBy: 'Hiren Baldha',
         notes: `System generated historic auto-close for ${dateStr} Shift ${s}`,
         attendance: {
           'emp_1': 'present',
@@ -95,7 +95,7 @@ export const OFFLINE_DEFAULT_STATE: SystemState = {
     { id: 'shift_3', name: 'Shift 3 (Night)', startTime: '22:00', endTime: '06:00', active: true }
   ],
   employees: [
-    { id: 'emp_1', name: 'Rajesh Patel', mobile: '9876543210', role: 'admin', active: true },
+    { id: 'emp_1', name: 'Hiren Baldha', mobile: '9876543210', role: 'admin', active: true },
     { id: 'emp_2', name: 'Amit Shah', mobile: '9876543211', role: 'manager', active: true },
     { id: 'emp_3', name: 'Karan Jha', mobile: '9876543212', role: 'employee', active: true },
     { id: 'emp_4', name: 'Vijay Parmar', mobile: '9876543213', role: 'employee', active: true }
@@ -140,7 +140,7 @@ export const OFFLINE_DEFAULT_STATE: SystemState = {
   ],
   cashTallies: [],
   logs: [
-    { id: 'log_1', timestamp: new Date().toISOString(), userId: 'emp_1', userName: 'Rajesh Patel', action: 'System provisioned with offline fallback database.' }
+    { id: 'log_1', timestamp: new Date().toISOString(), userId: 'emp_1', userName: 'Hiren Baldha', action: 'System provisioned with offline fallback database.' }
   ]
 };
 
